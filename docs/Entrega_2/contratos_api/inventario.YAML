@@ -1,0 +1,744 @@
+# Contrato de API · Microservicio de Inventario (Django)
+openapi: 3.0.3
+info:
+  title: API de Inventario · Ferretería Cafetera
+  version: 1.0.0
+  description: |
+    Microservicio de Inventario, construido en Django con su propia base de datos (inventario_db).
+    Solo se consume a través del API Gateway (Laravel). El Gateway valida el token de Sanctum y el rol del usuario, y reenvía la petición con el token interno y los datos del usuario en los encabezados X-User-Id y X-User-Rol.
+servers:
+  - url: http://localhost:30080/api/inventario
+    description: A través del API Gateway (NodePort)
+tags:
+  - name: Bodegas
+    description: Bodegas físicas de la empresa (REQ-F-007)
+  - name: Movimientos
+    description: Entradas, salidas, ajustes y kardex (REQ-F-008 y REQ-F-011)
+  - name: Traslados
+    description: Traslados entre bodegas (REQ-F-009)
+  - name: Existencias
+    description: Saldos, disponibilidad y stock mínimo (REQ-F-010 y REQ-F-015)
+security:
+  - tokenSanctum: []
+paths:
+  /bodegas:
+    get:
+      tags:
+        - Bodegas
+      summary: Lista las bodegas
+      description: "Roles permitidos: Administrador, Operador y Vendedor."
+      parameters:
+        - name: activa
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Lista de bodegas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Bodega"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+    post:
+      tags:
+        - Bodegas
+      summary: Crea una bodega
+      description: "Roles permitidos: Administrador."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BodegaNueva"
+      responses:
+        "201":
+          description: Bodega creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bodega"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "409":
+          description: Ya existe una bodega con ese código
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /bodegas/{id}:
+    put:
+      tags:
+        - Bodegas
+      summary: Actualiza una bodega
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BodegaNueva"
+      responses:
+        "200":
+          description: Bodega actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bodega"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /bodegas/{id}/desactivar:
+    patch:
+      tags:
+        - Bodegas
+      summary: Desactiva una bodega
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Bodega desactivada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bodega"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: La bodega todavía tiene existencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /movimientos/entradas:
+    post:
+      tags:
+        - Movimientos
+      summary: Registra una entrada
+      description: |
+        Suma al saldo. Compras lo usa de forma interna al recibir mercancía o una devolución de cliente.
+        Si llega dos veces la misma referencia para el mismo producto, se rechaza para no duplicar el stock.
+        Roles permitidos: Administrador y Operador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tipo
+                - producto_id
+                - bodega_id
+                - cantidad
+              properties:
+                tipo:
+                  type: string
+                  enum:
+                    - ENTRADA_COMPRA
+                    - DEVOLUCION_CLIENTE
+                  example: ENTRADA_COMPRA
+                producto_id:
+                  type: integer
+                  example: 1024
+                bodega_id:
+                  type: integer
+                  example: 3
+                cantidad:
+                  type: number
+                  minimum: 0.001
+                  example: 25.5
+                referencia:
+                  type: string
+                  maxLength: 50
+                  description: Id de la recepción o de la devolución en compras_db
+                  example: REC-2026-0088
+      responses:
+        "201":
+          description: Entrada registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movimiento"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: Esa recepción ya fue registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: MOVIMIENTO_DUPLICADO
+                mensaje: La referencia REC-2026-0088 ya se registró para este producto
+                correlation_id: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  /movimientos/salidas:
+    post:
+      tags:
+        - Movimientos
+      summary: Registra una venta o una salida
+      description: |
+        Descuenta el saldo de inmediato. Si no hay existencias suficientes, se rechaza con 409 y no se descuenta nada.
+        Si el saldo queda por debajo del mínimo, se avisa a Notificaciones.
+        Roles permitidos: Administrador, Operador y Vendedor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tipo
+                - producto_id
+                - bodega_id
+                - cantidad
+              properties:
+                tipo:
+                  type: string
+                  enum:
+                    - SALIDA_VENTA_MOSTRADOR
+                    - SALIDA_VENTA_MAYORISTA
+                    - DEVOLUCION_PROVEEDOR
+                  example: SALIDA_VENTA_MOSTRADOR
+                producto_id:
+                  type: integer
+                  example: 1024
+                bodega_id:
+                  type: integer
+                  example: 3
+                cantidad:
+                  type: number
+                  minimum: 0.001
+                  example: 25.5
+                referencia:
+                  type: string
+                  maxLength: 50
+                  description: Número del pedido o de la factura de venta
+                  example: PED-2026-0457
+      responses:
+        "201":
+          description: Salida registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movimiento"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: Existencias insuficientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: EXISTENCIAS_INSUFICIENTES
+                mensaje: Solo hay 10.000 unidades disponibles en la bodega
+                correlation_id: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  /movimientos/ajustes:
+    post:
+      tags:
+        - Movimientos
+      summary: Registra un ajuste de inventario
+      description: |
+        El motivo es obligatorio.
+        Roles permitidos: Administrador y Operador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tipo
+                - producto_id
+                - bodega_id
+                - cantidad
+                - motivo
+              properties:
+                tipo:
+                  type: string
+                  enum:
+                    - AJUSTE_POSITIVO
+                    - AJUSTE_NEGATIVO
+                  example: AJUSTE_NEGATIVO
+                producto_id:
+                  type: integer
+                  example: 1024
+                bodega_id:
+                  type: integer
+                  example: 3
+                cantidad:
+                  type: number
+                  minimum: 0.001
+                  example: 25.5
+                motivo:
+                  type: string
+                  maxLength: 255
+                  example: Conteo físico de fin de mes
+      responses:
+        "201":
+          description: Ajuste registrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movimiento"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: El ajuste dejaría el saldo en negativo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /movimientos:
+    get:
+      tags:
+        - Movimientos
+      summary: Consulta el kardex de un producto
+      description: |
+        Los movimientos no se pueden modificar ni eliminar.
+        Roles permitidos: Administrador y Operador.
+      parameters:
+        - name: producto_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+        - name: desde
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Movimientos del más reciente al más antiguo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movimiento"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+  /traslados:
+    post:
+      tags:
+        - Traslados
+      summary: Traslada productos entre bodegas
+      description: |
+        Registra en una sola operación una salida en la bodega de origen y una entrada en la de destino por cada producto.
+        Roles permitidos: Administrador y Operador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bodega_origen_id
+                - bodega_destino_id
+                - items
+              properties:
+                bodega_origen_id:
+                  type: integer
+                  example: 1
+                bodega_destino_id:
+                  type: integer
+                  example: 2
+                observacion:
+                  type: string
+                  maxLength: 255
+                  example: Reabastecimiento para temporada de obras
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - producto_id
+                      - cantidad
+                    properties:
+                      producto_id:
+                        type: integer
+                        example: 1024
+                      cantidad:
+                        type: number
+                        minimum: 0.001
+                        example: 100
+                  minItems: 1
+      responses:
+        "201":
+          description: Traslado registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 341
+                  bodega_origen_id:
+                    type: integer
+                    example: 1
+                  bodega_destino_id:
+                    type: integer
+                    example: 2
+                  observacion:
+                    type: string
+                    nullable: true
+                    example: Reabastecimiento para temporada de obras
+                  movimientos:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Movimiento"
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2026-10-26T15:42:10Z"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "409":
+          description: Existencias insuficientes en la bodega de origen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stock/{productoId}:
+    get:
+      tags:
+        - Existencias
+      summary: Consulta la disponibilidad de un producto
+      description: |
+        Devuelve el saldo en cada bodega y el total de las tres sedes en una sola consulta.
+        Roles permitidos: Administrador, Operador y Vendedor.
+      parameters:
+        - name: productoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Disponibilidad del producto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  producto_id:
+                    type: integer
+                    example: 1024
+                  total:
+                    type: number
+                    example: 312.5
+                  bodegas:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bodega_id:
+                          type: integer
+                          example: 1
+                        bodega:
+                          type: string
+                          example: Bodega central Manizales
+                        cantidad:
+                          type: number
+                          example: 238
+                        stock_minimo:
+                          type: number
+                          example: 50
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /existencias/bajo-minimo:
+    get:
+      tags:
+        - Existencias
+      summary: Lista los productos por debajo del stock mínimo
+      description: |
+        Alimenta las alertas que se muestran en pantalla.
+        Roles permitidos: Administrador y Operador.
+      parameters:
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Existencias bajo el mínimo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Existencia"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+  /existencias/{bodegaId}/{productoId}/minimo:
+    put:
+      tags:
+        - Existencias
+      summary: Configura el stock mínimo
+      description: |
+        Define el umbral a partir del cual se genera la alerta para ese producto en esa bodega.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: bodegaId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: productoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - stock_minimo
+              properties:
+                stock_minimo:
+                  type: number
+                  minimum: 0
+                  example: 20
+      responses:
+        "200":
+          description: Stock mínimo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Existencia"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+components:
+  securitySchemes:
+    tokenSanctum:
+      type: http
+      scheme: bearer
+      description: Token de Sanctum que entrega el Gateway en POST /api/login
+  schemas:
+    Bodega:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: MZL
+        nombre:
+          type: string
+          example: Bodega central Manizales
+        ciudad:
+          type: string
+          example: Manizales
+        direccion:
+          type: string
+          example: "Cra. 23 # 65-10"
+        telefono:
+          type: string
+          example: "6068801234"
+        es_principal:
+          type: boolean
+          example: true
+        activa:
+          type: boolean
+          example: true
+    BodegaNueva:
+      type: object
+      required:
+        - codigo
+        - nombre
+        - ciudad
+        - direccion
+        - telefono
+      properties:
+        codigo:
+          type: string
+          maxLength: 10
+          example: PER
+        nombre:
+          type: string
+          maxLength: 100
+          example: Bodega Pereira
+        ciudad:
+          type: string
+          maxLength: 60
+          example: Pereira
+        direccion:
+          type: string
+          maxLength: 150
+          example: "Av. 30 de Agosto # 40-12"
+        telefono:
+          type: string
+          maxLength: 20
+          example: "6063401122"
+        es_principal:
+          type: boolean
+          default: false
+    Movimiento:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 88213
+        tipo:
+          type: string
+          example: SALIDA_VENTA_MOSTRADOR
+        producto_id:
+          type: integer
+          example: 1024
+        bodega_id:
+          type: integer
+          example: 3
+        cantidad:
+          type: number
+          example: 25.5
+        saldo_resultante:
+          type: number
+          example: 74.5
+        traslado_id:
+          type: integer
+          nullable: true
+        referencia:
+          type: string
+          nullable: true
+          example: PED-2026-0457
+        motivo:
+          type: string
+          nullable: true
+        usuario_id:
+          type: integer
+          example: 12
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-26T15:42:10Z"
+    Existencia:
+      type: object
+      properties:
+        bodega_id:
+          type: integer
+          example: 3
+        producto_id:
+          type: integer
+          example: 1024
+        cantidad:
+          type: number
+          example: 8
+        stock_minimo:
+          type: number
+          example: 20
+        alerta_enviada:
+          type: boolean
+          example: true
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: DATOS_INVALIDOS
+        mensaje:
+          type: string
+          example: La cantidad debe ser mayor que cero
+        correlation_id:
+          type: string
+          example: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  responses:
+    DatosInvalidos:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoAutenticado:
+      description: Falta el token o no es válido (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    SinPermiso:
+      description: El rol del usuario no tiene permiso para esta operación (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoEncontrado:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
