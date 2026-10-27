@@ -13,7 +13,7 @@ Sistema de gestión de inventarios basado en una arquitectura de microservicios 
 
 ## Arquitectura
 
-![Arquitectura de microservicios](docs/entrega-2/imagenes/arquitectura.png)
+![Arquitectura de microservicios](docs/entrega_2/Arquitectura_y_Modelos_ER.jpg)
 
 Todas las peticiones entran por un API Gateway propio, que valida el token de Sanctum y el rol del usuario y redirige cada petición al microservicio que corresponde. Los microservicios se comunican entre sí por medio de API REST y se ubican por su nombre gracias al DNS interno de Kubernetes. Cada servicio administra únicamente su propia base de datos.
 
