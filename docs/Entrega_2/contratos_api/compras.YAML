@@ -1,0 +1,544 @@
+# Contrato de API · Microservicio de Compras y devoluciones (Flask)
+openapi: 3.0.3
+info:
+  title: API de Compras y devoluciones · Ferretería Cafetera
+  version: 1.0.0
+  description: |
+    Microservicio de Compras y devoluciones, construido en Flask con su propia base de datos (compras_db).
+    Solo se consume a través del API Gateway (Laravel). El Gateway valida el token de Sanctum y el rol del usuario, y reenvía la petición con el token interno y los datos del usuario en los encabezados X-User-Id y X-User-Rol.
+servers:
+  - url: http://localhost:30080/api/compras
+    description: A través del API Gateway (NodePort)
+tags:
+  - name: Órdenes de compra
+    description: Órdenes a proveedores (REQ-F-012)
+  - name: Recepciones
+    description: Recepción total o parcial (REQ-F-013)
+  - name: Devoluciones
+    description: Devoluciones de clientes y a proveedores (REQ-F-014)
+security:
+  - tokenSanctum: []
+paths:
+  /ordenes:
+    get:
+      tags:
+        - Órdenes de compra
+      summary: Lista las órdenes de compra
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+            enum: &id001
+              - BORRADOR
+              - ENVIADA
+              - RECIBIDA_PARCIAL
+              - RECIBIDA
+              - CANCELADA
+        - name: proveedor_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de órdenes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrdenCompra"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+    post:
+      tags:
+        - Órdenes de compra
+      summary: Crea una orden de compra
+      description: |
+        Valida con Proveedores y con Catálogo que el proveedor y los productos existan.
+        Roles permitidos: Administrador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrdenNueva"
+      responses:
+        "201":
+          description: Orden creada en estado BORRADOR
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdenCompra"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /ordenes/{id}:
+    get:
+      tags:
+        - Órdenes de compra
+      summary: Consulta una orden con su detalle
+      description: "Roles permitidos: Administrador y Operador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Orden de compra
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdenCompra"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /ordenes/{id}/estado:
+    patch:
+      tags:
+        - Órdenes de compra
+      summary: Cambia el estado de una orden
+      description: |
+        Solo permite enviar o cancelar. Los estados RECIBIDA_PARCIAL y RECIBIDA se asignan solos al registrar recepciones.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - estado
+              properties:
+                estado:
+                  type: string
+                  enum:
+                    - ENVIADA
+                    - CANCELADA
+                  example: ENVIADA
+      responses:
+        "200":
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdenCompra"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: El cambio de estado no es válido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: TRANSICION_INVALIDA
+                mensaje: Una orden RECIBIDA no se puede cancelar
+                correlation_id: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  /ordenes/{id}/recepciones:
+    post:
+      tags:
+        - Recepciones
+      summary: Registra la llegada de mercancía
+      description: |
+        La recepción puede ser total o parcial. Por cada producto recibido, registra una entrada en Inventario.
+        Roles permitidos: Administrador y Operador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecepcionNueva"
+      responses:
+        "201":
+          description: Recepción registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recepcion"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: Se recibe más de lo pendiente o la orden no está ENVIADA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /devoluciones:
+    get:
+      tags:
+        - Devoluciones
+      summary: Lista las devoluciones
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: tipo
+          in: query
+          schema:
+            type: string
+            enum:
+              - CLIENTE
+              - PROVEEDOR
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de devoluciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Devolucion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+    post:
+      tags:
+        - Devoluciones
+      summary: Registra una devolución
+      description: |
+        Si es de un cliente, Inventario solo reingresa los productos en buen estado.
+        Si es a un proveedor, Inventario descuenta la cantidad y se guarda la orden de origen.
+        Roles permitidos: Administrador y Operador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevolucionNueva"
+      responses:
+        "201":
+          description: Devolución registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Devolucion"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+components:
+  securitySchemes:
+    tokenSanctum:
+      type: http
+      scheme: bearer
+      description: Token de Sanctum que entrega el Gateway en POST /api/login
+  schemas:
+    OrdenCompra:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 57
+        numero:
+          type: string
+          example: OC-2026-0057
+        proveedor_id:
+          type: integer
+          example: 7
+        bodega_destino_id:
+          type: integer
+          example: 1
+        estado:
+          type: string
+          enum: *id001
+          example: ENVIADA
+        fecha_emision:
+          type: string
+          format: date
+          example: "2026-10-26"
+        fecha_esperada:
+          type: string
+          format: date
+          example: "2026-10-29"
+          nullable: true
+        observacion:
+          type: string
+          nullable: true
+        usuario_id:
+          type: integer
+          example: 1
+        detalle:
+          type: array
+          items:
+            type: object
+            properties:
+              producto_id:
+                type: integer
+                example: 1024
+              cantidad_pedida:
+                type: number
+                example: 500
+              cantidad_recibida:
+                type: number
+                example: 300
+              precio_unitario:
+                type: number
+                example: 2100
+    OrdenNueva:
+      type: object
+      required:
+        - proveedor_id
+        - bodega_destino_id
+        - items
+      properties:
+        proveedor_id:
+          type: integer
+          example: 7
+        bodega_destino_id:
+          type: integer
+          example: 1
+        fecha_esperada:
+          type: string
+          format: date
+          example: "2026-10-29"
+        observacion:
+          type: string
+          maxLength: 255
+          example: Pedido para temporada de fin de año
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - producto_id
+              - cantidad_pedida
+              - precio_unitario
+            properties:
+              producto_id:
+                type: integer
+                example: 1024
+              cantidad_pedida:
+                type: number
+                minimum: 0.001
+                example: 500
+              precio_unitario:
+                type: number
+                minimum: 0
+                example: 2100
+          minItems: 1
+    Recepcion:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 88
+        orden_id:
+          type: integer
+          example: 57
+        usuario_id:
+          type: integer
+          example: 12
+        observacion:
+          type: string
+          nullable: true
+          example: Llegó la mitad del cable
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              producto_id:
+                type: integer
+                example: 1024
+              cantidad_recibida:
+                type: number
+                example: 300
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-26T15:42:10Z"
+    RecepcionNueva:
+      type: object
+      required:
+        - items
+      properties:
+        observacion:
+          type: string
+          maxLength: 255
+          example: Llegó la mitad del cable
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - producto_id
+              - cantidad_recibida
+            properties:
+              producto_id:
+                type: integer
+                example: 1024
+              cantidad_recibida:
+                type: number
+                minimum: 0.001
+                example: 300
+          minItems: 1
+    Devolucion:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 21
+        tipo:
+          type: string
+          enum:
+            - CLIENTE
+            - PROVEEDOR
+          example: CLIENTE
+        orden_id:
+          type: integer
+          nullable: true
+        bodega_id:
+          type: integer
+          example: 3
+        referencia_venta:
+          type: string
+          nullable: true
+          example: PED-2026-0457
+        motivo:
+          type: string
+          example: El cliente compró de más
+        usuario_id:
+          type: integer
+          example: 12
+        items:
+          type: array
+          items: &id002
+            type: object
+            required:
+              - producto_id
+              - cantidad
+              - estado_producto
+            properties:
+              producto_id:
+                type: integer
+                example: 1024
+              cantidad:
+                type: number
+                minimum: 0.001
+                example: 5
+              estado_producto:
+                type: string
+                enum:
+                  - BUEN_ESTADO
+                  - DEFECTUOSO
+                example: BUEN_ESTADO
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-26T15:42:10Z"
+    DevolucionNueva:
+      type: object
+      required:
+        - tipo
+        - bodega_id
+        - motivo
+        - items
+      properties:
+        tipo:
+          type: string
+          enum:
+            - CLIENTE
+            - PROVEEDOR
+          example: CLIENTE
+        orden_id:
+          type: integer
+          nullable: true
+          description: Obligatoria si la devolución es a un proveedor
+        bodega_id:
+          type: integer
+          example: 3
+        referencia_venta:
+          type: string
+          maxLength: 50
+          description: Número de la venta, si la devolución es de un cliente
+          example: PED-2026-0457
+        motivo:
+          type: string
+          maxLength: 255
+          example: El cliente compró de más
+        items:
+          type: array
+          items: *id002
+          minItems: 1
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: DATOS_INVALIDOS
+        mensaje:
+          type: string
+          example: La cantidad debe ser mayor que cero
+        correlation_id:
+          type: string
+          example: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  responses:
+    DatosInvalidos:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoAutenticado:
+      description: Falta el token o no es válido (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    SinPermiso:
+      description: El rol del usuario no tiene permiso para esta operación (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoEncontrado:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
