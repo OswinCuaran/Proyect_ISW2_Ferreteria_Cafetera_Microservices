@@ -1,0 +1,413 @@
+# Contrato de API · Microservicio de Proveedores (Django)
+openapi: 3.0.3
+info:
+  title: API de Proveedores · Ferretería Cafetera
+  version: 1.0.0
+  description: |
+    Microservicio de Proveedores, construido en Django con su propia base de datos (proveedores_db).
+    Solo se consume a través del API Gateway (Laravel). El Gateway valida el token de Sanctum y el rol del usuario, y reenvía la petición con el token interno y los datos del usuario en los encabezados X-User-Id y X-User-Rol.
+servers:
+  - url: http://localhost:30080/api/proveedores
+    description: A través del API Gateway (NodePort)
+tags:
+  - name: Proveedores
+    description: Registro y gestión de proveedores (REQ-F-004)
+  - name: Contactos
+    description: Personas de contacto de cada proveedor
+security:
+  - tokenSanctum: []
+paths:
+  /:
+    get:
+      tags:
+        - Proveedores
+      summary: Lista y busca proveedores
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: buscar
+          in: query
+          description: Busca por NIT o razón social
+          schema:
+            type: string
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Lista de proveedores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Proveedor"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+    post:
+      tags:
+        - Proveedores
+      summary: Registra un proveedor
+      description: "Roles permitidos: Administrador."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProveedorNuevo"
+      responses:
+        "201":
+          description: Proveedor registrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Proveedor"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "409":
+          description: Ya existe un proveedor con ese NIT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: NIT_DUPLICADO
+                mensaje: El NIT 900123456-7 ya está registrado
+                correlation_id: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  /{id}:
+    get:
+      tags:
+        - Proveedores
+      summary: Consulta un proveedor
+      description: |
+        Catálogo y Compras también lo usan de forma interna para validar que el proveedor exista y esté activo.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Datos del proveedor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Proveedor"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+    put:
+      tags:
+        - Proveedores
+      summary: Actualiza un proveedor
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProveedorNuevo"
+      responses:
+        "200":
+          description: Proveedor actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Proveedor"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /{id}/baja:
+    patch:
+      tags:
+        - Proveedores
+      summary: Da de baja un proveedor
+      description: |
+        El proveedor no se borra, se desactiva para conservar su historial.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Proveedor dado de baja
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Proveedor"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /{id}/contactos:
+    get:
+      tags:
+        - Contactos
+      summary: Lista los contactos de un proveedor
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contactos del proveedor
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contacto"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+    post:
+      tags:
+        - Contactos
+      summary: Agrega un contacto a un proveedor
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactoNuevo"
+      responses:
+        "201":
+          description: Contacto agregado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contacto"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+components:
+  securitySchemes:
+    tokenSanctum:
+      type: http
+      scheme: bearer
+      description: Token de Sanctum que entrega el Gateway en POST /api/login
+  schemas:
+    Proveedor:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 7
+        nit:
+          type: string
+          example: 900123456-7
+        tipo_persona:
+          type: string
+          enum:
+            - NATURAL
+            - JURIDICA
+          example: JURIDICA
+        razon_social:
+          type: string
+          example: Distribuidora Andina de Materiales S.A.S.
+        nombre_comercial:
+          type: string
+          nullable: true
+          example: DisAndina
+        telefono:
+          type: string
+          example: "6048890011"
+        correo:
+          type: string
+          example: ventas@disandina.co
+        direccion:
+          type: string
+          example: "Calle 30 # 52-14"
+        ciudad:
+          type: string
+          example: Medellín
+        tiempo_entrega_dias:
+          type: integer
+          example: 3
+        activo:
+          type: boolean
+          example: true
+    ProveedorNuevo:
+      type: object
+      required:
+        - nit
+        - tipo_persona
+        - razon_social
+        - telefono
+        - correo
+        - direccion
+        - ciudad
+        - tiempo_entrega_dias
+      properties:
+        nit:
+          type: string
+          maxLength: 20
+          example: 900123456-7
+        tipo_persona:
+          type: string
+          enum:
+            - NATURAL
+            - JURIDICA
+          example: JURIDICA
+        razon_social:
+          type: string
+          maxLength: 150
+          example: Distribuidora Andina de Materiales S.A.S.
+        nombre_comercial:
+          type: string
+          maxLength: 150
+          example: DisAndina
+        telefono:
+          type: string
+          maxLength: 20
+          example: "6048890011"
+        correo:
+          type: string
+          format: email
+          maxLength: 120
+          example: ventas@disandina.co
+        direccion:
+          type: string
+          maxLength: 150
+          example: "Calle 30 # 52-14"
+        ciudad:
+          type: string
+          maxLength: 60
+          example: Medellín
+        tiempo_entrega_dias:
+          type: integer
+          minimum: 1
+          example: 3
+    Contacto:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 15
+        proveedor_id:
+          type: integer
+          example: 7
+        nombre:
+          type: string
+          example: Carlos Restrepo
+        cargo:
+          type: string
+          nullable: true
+          example: Asesor comercial
+        telefono:
+          type: string
+          example: "3104567890"
+        correo:
+          type: string
+          nullable: true
+          example: carlos.restrepo@disandina.co
+        es_principal:
+          type: boolean
+          example: true
+    ContactoNuevo:
+      type: object
+      required:
+        - nombre
+        - telefono
+      properties:
+        nombre:
+          type: string
+          maxLength: 100
+          example: Carlos Restrepo
+        cargo:
+          type: string
+          maxLength: 60
+          example: Asesor comercial
+        telefono:
+          type: string
+          maxLength: 20
+          example: "3104567890"
+        correo:
+          type: string
+          format: email
+          example: carlos.restrepo@disandina.co
+        es_principal:
+          type: boolean
+          default: false
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: DATOS_INVALIDOS
+        mensaje:
+          type: string
+          example: La cantidad debe ser mayor que cero
+        correlation_id:
+          type: string
+          example: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  responses:
+    DatosInvalidos:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoAutenticado:
+      description: Falta el token o no es válido (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    SinPermiso:
+      description: El rol del usuario no tiene permiso para esta operación (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoEncontrado:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

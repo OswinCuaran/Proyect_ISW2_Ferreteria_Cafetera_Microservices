@@ -1,0 +1,447 @@
+# Contrato de API · Microservicio de Catálogo (Express)
+openapi: 3.0.3
+info:
+  title: API de Catálogo · Ferretería Cafetera
+  version: 1.0.0
+  description: |
+    Microservicio de Catálogo, construido en Express con su propia base de datos (catalogo_db).
+    Solo se consume a través del API Gateway (Laravel). El Gateway valida el token de Sanctum y el rol del usuario, y reenvía la petición con el token interno y los datos del usuario en los encabezados X-User-Id y X-User-Rol.
+servers:
+  - url: http://localhost:30080/api/catalogo
+    description: A través del API Gateway (NodePort)
+tags:
+  - name: Productos
+    description: Productos de la ferretería (REQ-F-005 y REQ-F-006)
+  - name: Categorías
+    description: Categorías y subcategorías (REQ-F-005)
+security:
+  - tokenSanctum: []
+paths:
+  /productos:
+    get:
+      tags:
+        - Productos
+      summary: Busca y filtra productos
+      description: |
+        Busca por nombre, código, categoría o proveedor (REQ-F-006).
+        Reportes también lo usa de forma interna para obtener precios y categorías.
+        Roles permitidos: Administrador, Operador y Vendedor.
+      parameters:
+        - name: buscar
+          in: query
+          description: Texto a buscar en el nombre o el código
+          schema:
+            type: string
+        - name: categoria_id
+          in: query
+          schema:
+            type: integer
+        - name: proveedor_id
+          in: query
+          schema:
+            type: integer
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Productos encontrados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Producto"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+    post:
+      tags:
+        - Productos
+      summary: Crea un producto
+      description: |
+        Antes de guardarlo, valida con Proveedores que el proveedor exista y esté activo.
+        Roles permitidos: Administrador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductoNuevo"
+      responses:
+        "201":
+          description: Producto creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "409":
+          description: Ya existe un producto con ese código
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /productos/{id}:
+    get:
+      tags:
+        - Productos
+      summary: Consulta un producto
+      description: |
+        Inventario y Compras también lo usan de forma interna para validar que el producto exista y esté activo.
+        Roles permitidos: Administrador, Operador y Vendedor.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Datos del producto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+    put:
+      tags:
+        - Productos
+      summary: Actualiza un producto
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductoNuevo"
+      responses:
+        "200":
+          description: Producto actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /productos/{id}/baja:
+    patch:
+      tags:
+        - Productos
+      summary: Da de baja un producto
+      description: |
+        Baja lógica: deja de estar disponible pero no se elimina, para conservar el historial.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Producto dado de baja
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Producto"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /categorias:
+    get:
+      tags:
+        - Categorías
+      summary: Lista las categorías y subcategorías
+      description: "Roles permitidos: Administrador, Operador y Vendedor."
+      parameters:
+        - name: categoria_padre_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de categorías
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Categoria"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+    post:
+      tags:
+        - Categorías
+      summary: Crea una categoría o subcategoría
+      description: "Roles permitidos: Administrador."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoriaNueva"
+      responses:
+        "201":
+          description: Categoría creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Categoria"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "409":
+          description: Ya existe una categoría con ese nombre
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /categorias/{id}:
+    put:
+      tags:
+        - Categorías
+      summary: Actualiza una categoría
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoriaNueva"
+      responses:
+        "200":
+          description: Categoría actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Categoria"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+    delete:
+      tags:
+        - Categorías
+      summary: Elimina una categoría
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Categoría eliminada
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: La categoría tiene productos o subcategorías
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: CATEGORIA_EN_USO
+                mensaje: No se puede eliminar porque tiene productos asociados
+                correlation_id: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+components:
+  securitySchemes:
+    tokenSanctum:
+      type: http
+      scheme: bearer
+      description: Token de Sanctum que entrega el Gateway en POST /api/login
+  schemas:
+    Producto:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1024
+        codigo:
+          type: string
+          example: ELE-CAB-12
+        nombre:
+          type: string
+          example: Cable eléctrico calibre 12 AWG
+        descripcion:
+          type: string
+          nullable: true
+          example: Cable de cobre THHN para instalaciones residenciales
+        categoria_id:
+          type: integer
+          example: 8
+        categoria:
+          type: string
+          example: Cables y alambres
+        proveedor_id:
+          type: integer
+          example: 7
+        unidad_medida:
+          type: string
+          enum: &id001
+            - UNIDAD
+            - PAR
+            - CAJA
+            - METRO
+            - ROLLO
+            - KILOGRAMO
+            - BULTO
+            - LITRO
+            - GALON
+          example: METRO
+        precio_venta:
+          type: number
+          example: 3200
+        activo:
+          type: boolean
+          example: true
+    ProductoNuevo:
+      type: object
+      required:
+        - codigo
+        - nombre
+        - categoria_id
+        - proveedor_id
+        - unidad_medida
+        - precio_venta
+      properties:
+        codigo:
+          type: string
+          maxLength: 30
+          example: ELE-CAB-12
+        nombre:
+          type: string
+          maxLength: 150
+          example: Cable eléctrico calibre 12 AWG
+        descripcion:
+          type: string
+          example: Cable de cobre THHN para instalaciones residenciales
+        categoria_id:
+          type: integer
+          example: 8
+        proveedor_id:
+          type: integer
+          example: 7
+        unidad_medida:
+          type: string
+          enum: *id001
+          example: METRO
+        precio_venta:
+          type: number
+          minimum: 0
+          example: 3200
+    Categoria:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 8
+        nombre:
+          type: string
+          example: Cables y alambres
+        descripcion:
+          type: string
+          nullable: true
+        categoria_padre_id:
+          type: integer
+          nullable: true
+          example: 2
+        activa:
+          type: boolean
+          example: true
+    CategoriaNueva:
+      type: object
+      required:
+        - nombre
+      properties:
+        nombre:
+          type: string
+          maxLength: 100
+          example: Cables y alambres
+        descripcion:
+          type: string
+          maxLength: 255
+        categoria_padre_id:
+          type: integer
+          nullable: true
+          description: Vacío si es una categoría principal
+          example: 2
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: DATOS_INVALIDOS
+        mensaje:
+          type: string
+          example: La cantidad debe ser mayor que cero
+        correlation_id:
+          type: string
+          example: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  responses:
+    DatosInvalidos:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoAutenticado:
+      description: Falta el token o no es válido (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    SinPermiso:
+      description: El rol del usuario no tiene permiso para esta operación (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoEncontrado:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

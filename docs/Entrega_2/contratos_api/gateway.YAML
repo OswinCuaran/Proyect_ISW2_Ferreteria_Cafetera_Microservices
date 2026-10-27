@@ -1,0 +1,534 @@
+# Contrato de API · API Gateway (Laravel + Sanctum)
+openapi: 3.0.3
+info:
+  title: API Gateway · Ferretería Cafetera
+  version: 1.0.0
+  description: |
+    API Gateway propio, construido en Laravel con su propia base de datos (gateway_db). Es el único punto de entrada
+    al sistema. Aquí se documentan sus endpoints propios de usuarios y autenticación con Sanctum. Además, el Gateway
+    redirige las peticiones /api/{servicio}/... al microservicio correspondiente, cuyos contratos están aparte.
+servers:
+  - url: http://localhost:30080/api
+    description: API Gateway (NodePort)
+tags:
+  - name: Autenticación
+    description: Inicio y cierre de sesión, recuperación y cambio de contraseña (REQ-F-001)
+  - name: Usuarios
+    description: Registro y gestión de usuarios y roles (REQ-F-002 y REQ-F-003)
+security:
+  - tokenSanctum: []
+paths:
+  /register:
+    post:
+      tags:
+        - Usuarios
+      summary: Registra un usuario nuevo
+      description: |
+        Crea la cuenta de un empleado con su rol, su bodega y su pregunta de seguridad.
+        Roles permitidos: Administrador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tipo_documento
+                - documento
+                - nombre
+                - apellido
+                - correo
+                - password
+                - rol_id
+                - pregunta_id
+                - respuesta_seguridad
+              properties:
+                tipo_documento:
+                  type: string
+                  enum:
+                    - CC
+                    - CE
+                    - PA
+                  example: CC
+                documento:
+                  type: string
+                  maxLength: 20
+                  example: "1053845210"
+                nombre:
+                  type: string
+                  maxLength: 100
+                  example: Laura
+                apellido:
+                  type: string
+                  maxLength: 100
+                  example: Gómez
+                correo:
+                  type: string
+                  format: email
+                  maxLength: 120
+                  example: laura.gomez@ferreteriacafetera.co
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: Clave.Segura2026
+                rol_id:
+                  type: integer
+                  example: 2
+                bodega_id:
+                  type: integer
+                  nullable: true
+                  example: 3
+                pregunta_id:
+                  type: integer
+                  example: 1
+                respuesta_seguridad:
+                  type: string
+                  format: password
+                  example: Manizales
+      responses:
+        "201":
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "409":
+          description: Ya existe un usuario con ese correo o documento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /login:
+    post:
+      tags:
+        - Autenticación
+      summary: Inicia sesión
+      description: Valida el correo y la contraseña y entrega un token de Sanctum. Ruta pública.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - correo
+                - password
+              properties:
+                correo:
+                  type: string
+                  format: email
+                  example: laura.gomez@ferreteriacafetera.co
+                password:
+                  type: string
+                  format: password
+                  example: Clave.Segura2026
+      responses:
+        "200":
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: 7|kP3mZr8xQ2vN5bT1wY6cH4jL9sD0fG
+                  tipo:
+                    type: string
+                    example: Bearer
+                  usuario:
+                    $ref: "#/components/schemas/Usuario"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          description: Correo o contraseña incorrectos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: CREDENCIALES_INVALIDAS
+                mensaje: El correo o la contraseña no son correctos
+                correlation_id: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+        "429":
+          description: Demasiados intentos, el Gateway limita las peticiones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /logout:
+    post:
+      tags:
+        - Autenticación
+      summary: Cierra la sesión
+      description: |
+        Revoca el token con el que se hizo la petición.
+        Roles permitidos: Administrador, Operador y Vendedor.
+      responses:
+        "204":
+          description: Sesión cerrada
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+  /password/pregunta:
+    get:
+      tags:
+        - Autenticación
+      summary: Consulta la pregunta de seguridad
+      description: Primer paso para recuperar la contraseña. Ruta pública.
+      security: []
+      parameters:
+        - name: correo
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Pregunta de seguridad del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pregunta:
+                    type: string
+                    example: ¿En qué ciudad nació su madre?
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /password/recuperar:
+    post:
+      tags:
+        - Autenticación
+      summary: Recupera la contraseña
+      description: Si la respuesta de seguridad es correcta, guarda la nueva contraseña. Ruta pública.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - correo
+                - respuesta_seguridad
+                - password_nueva
+              properties:
+                correo:
+                  type: string
+                  format: email
+                  example: laura.gomez@ferreteriacafetera.co
+                respuesta_seguridad:
+                  type: string
+                  example: Manizales
+                password_nueva:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: Nueva.Clave2026
+      responses:
+        "204":
+          description: Contraseña actualizada
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          description: La respuesta de seguridad no es correcta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /password:
+    put:
+      tags:
+        - Autenticación
+      summary: Cambia la contraseña
+      description: "Roles permitidos: Administrador, Operador y Vendedor."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password_actual
+                - password_nueva
+              properties:
+                password_actual:
+                  type: string
+                  format: password
+                password_nueva:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        "204":
+          description: Contraseña actualizada
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+  /me:
+    get:
+      tags:
+        - Autenticación
+      summary: Consulta el usuario de la sesión
+      description: "Roles permitidos: Administrador, Operador y Vendedor."
+      responses:
+        "200":
+          description: Datos del usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+  /usuarios:
+    get:
+      tags:
+        - Usuarios
+      summary: Lista los usuarios
+      description: |
+        Notificaciones también lo usa de forma interna, con el token interno, para saber a quién avisar.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: rol
+          in: query
+          schema:
+            type: string
+            enum:
+              - ADMINISTRADOR
+              - OPERADOR
+              - VENDEDOR
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Usuario"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+  /usuarios/{id}:
+    put:
+      tags:
+        - Usuarios
+      summary: Actualiza un usuario
+      description: |
+        Permite cambiar sus datos, su rol o su bodega.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  example: Laura
+                apellido:
+                  type: string
+                  example: Gómez
+                correo:
+                  type: string
+                  format: email
+                  example: laura.gomez@ferreteriacafetera.co
+                rol_id:
+                  type: integer
+                  example: 2
+                bodega_id:
+                  type: integer
+                  nullable: true
+                  example: 1
+      responses:
+        "200":
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /usuarios/{id}/desactivar:
+    patch:
+      tags:
+        - Usuarios
+      summary: Desactiva un usuario
+      description: |
+        El usuario no se borra, para conservar el historial de lo que hizo.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Usuario desactivado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+  /roles:
+    get:
+      tags:
+        - Usuarios
+      summary: Lista los roles y sus permisos
+      description: "Roles permitidos: Administrador."
+      responses:
+        "200":
+          description: Roles del sistema
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rol"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+components:
+  securitySchemes:
+    tokenSanctum:
+      type: http
+      scheme: bearer
+      description: Token de Sanctum que entrega el Gateway en POST /api/login
+  schemas:
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        tipo_documento:
+          type: string
+          enum:
+            - CC
+            - CE
+            - PA
+          example: CC
+        documento:
+          type: string
+          example: "1053845210"
+        nombre:
+          type: string
+          example: Laura
+        apellido:
+          type: string
+          example: Gómez
+        correo:
+          type: string
+          example: laura.gomez@ferreteriacafetera.co
+        rol:
+          type: string
+          enum:
+            - ADMINISTRADOR
+            - OPERADOR
+            - VENDEDOR
+          example: OPERADOR
+        bodega_id:
+          type: integer
+          nullable: true
+          example: 3
+        activo:
+          type: boolean
+          example: true
+        ultimo_acceso:
+          type: string
+          format: date-time
+          example: "2026-10-26T15:42:10Z"
+          nullable: true
+    Rol:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 2
+        nombre:
+          type: string
+          example: OPERADOR
+        descripcion:
+          type: string
+          example: Registra movimientos y recepciones en su bodega
+        permisos:
+          type: array
+          items:
+            type: string
+            example: inventario.salidas.crear
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: DATOS_INVALIDOS
+        mensaje:
+          type: string
+          example: La cantidad debe ser mayor que cero
+        correlation_id:
+          type: string
+          example: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  responses:
+    DatosInvalidos:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoAutenticado:
+      description: Falta el token o no es válido (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    SinPermiso:
+      description: El rol del usuario no tiene permiso para esta operación (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoEncontrado:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

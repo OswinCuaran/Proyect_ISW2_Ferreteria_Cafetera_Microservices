@@ -1,0 +1,314 @@
+# Contrato de API · Microservicio de Reportes y dashboard (Flask)
+openapi: 3.0.3
+info:
+  title: API de Reportes y dashboard · Ferretería Cafetera
+  version: 1.0.0
+  description: |
+    Microservicio de Reportes, construido en Flask. Es un servicio sin estado y no tiene base de datos:
+    calcula los reportes en el momento con los datos que consulta a Inventario y a Catálogo.
+    Solo se consume a través del API Gateway (Laravel). El Gateway valida el token de Sanctum y el rol del usuario, y reenvía la petición con el token interno y los datos del usuario en los encabezados X-User-Id y X-User-Rol.
+servers:
+  - url: http://localhost:30080/api/reportes
+    description: A través del API Gateway (NodePort)
+tags:
+  - name: Reportes
+    description: Existencias, valorización, rotación y sugerencias (REQ-F-016 y REQ-F-017)
+  - name: Dashboard
+    description: Panel de indicadores (REQ-F-018)
+security:
+  - tokenSanctum: []
+paths:
+  /existencias:
+    get:
+      tags:
+        - Reportes
+      summary: Reporte de existencias actuales
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+        - name: categoria_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Existencias por producto y bodega
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    producto_id:
+                      type: integer
+                      example: 1024
+                    codigo:
+                      type: string
+                      example: ELE-CAB-12
+                    nombre:
+                      type: string
+                      example: Cable eléctrico calibre 12 AWG
+                    categoria:
+                      type: string
+                      example: Cables y alambres
+                    bodega_id:
+                      type: integer
+                      example: 1
+                    cantidad:
+                      type: number
+                      example: 238
+                    stock_minimo:
+                      type: number
+                      example: 50
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+  /valorizacion:
+    get:
+      tags:
+        - Reportes
+      summary: Reporte de valorización del inventario
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Valor del inventario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valor_total:
+                    type: number
+                    example: 184500000
+                  por_bodega:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bodega_id:
+                          type: integer
+                          example: 1
+                        valor:
+                          type: number
+                          example: 112300000
+                  productos:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        producto_id:
+                          type: integer
+                          example: 1024
+                        nombre:
+                          type: string
+                          example: Cable eléctrico calibre 12 AWG
+                        cantidad:
+                          type: number
+                          example: 312.5
+                        precio_unitario:
+                          type: number
+                          example: 3200
+                        valor:
+                          type: number
+                          example: 1000000
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+  /rotacion:
+    get:
+      tags:
+        - Reportes
+      summary: Productos de mayor y menor rotación
+      description: "Roles permitidos: Administrador."
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+        - name: limite
+          in: query
+          description: Cantidad de productos en cada lista
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rotación en el periodo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mayor_rotacion:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Rotacion"
+                  menor_rotacion:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Rotacion"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+  /sugerencias:
+    get:
+      tags:
+        - Reportes
+      summary: Sugerencias de reabastecimiento
+      description: |
+        Calcula cuándo y cuánto pedir según la rotación y la temporada. Solo se muestran, no crean órdenes.
+        Roles permitidos: Administrador.
+      parameters:
+        - name: bodega_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sugerencias
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    producto_id:
+                      type: integer
+                      example: 1024
+                    nombre:
+                      type: string
+                      example: Cable eléctrico calibre 12 AWG
+                    bodega_id:
+                      type: integer
+                      example: 3
+                    cantidad_sugerida:
+                      type: number
+                      example: 150
+                    fecha_sugerida:
+                      type: string
+                      format: date
+                      example: "2026-11-03"
+                    temporada:
+                      type: string
+                      nullable: true
+                      example: Fin de año
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+  /dashboard:
+    get:
+      tags:
+        - Dashboard
+      summary: Indicadores clave del inventario
+      description: "Roles permitidos: Administrador."
+      responses:
+        "200":
+          description: Indicadores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valor_total_inventario:
+                    type: number
+                    example: 184500000
+                  productos_en_quiebre:
+                    type: integer
+                    example: 4
+                  productos_bajo_minimo:
+                    type: integer
+                    example: 17
+                  rotacion_promedio:
+                    type: number
+                    example: 2.4
+                  calculado_en:
+                    type: string
+                    format: date-time
+                    example: "2026-10-26T15:42:10Z"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+components:
+  securitySchemes:
+    tokenSanctum:
+      type: http
+      scheme: bearer
+      description: Token de Sanctum que entrega el Gateway en POST /api/login
+  schemas:
+    Rotacion:
+      type: object
+      properties:
+        producto_id:
+          type: integer
+          example: 1024
+        nombre:
+          type: string
+          example: Cable eléctrico calibre 12 AWG
+        unidades_vendidas:
+          type: number
+          example: 420
+        stock_promedio:
+          type: number
+          example: 175
+        indice_rotacion:
+          type: number
+          example: 2.4
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: DATOS_INVALIDOS
+        mensaje:
+          type: string
+          example: La cantidad debe ser mayor que cero
+        correlation_id:
+          type: string
+          example: 3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0a1b47
+  responses:
+    DatosInvalidos:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NoAutenticado:
+      description: Falta el token o no es válido (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    SinPermiso:
+      description: El rol del usuario no tiene permiso para esta operación (lo responde el Gateway)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
