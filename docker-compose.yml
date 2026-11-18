@@ -21,6 +21,18 @@ services:
       timeout: 3s
       retries: 20
 
-# Volúmenes donde se guarda los datos de las bases de datos
+  # API Gateway (Laravel)
+  gateway:
+    build: ./gateway                              # Se construye desde gateway/Dockerfile
+    container_name: gateway                       # Nombre del contenedor
+    ports:
+      - "8000:8000"                               # 8000 en el computador y en el contenedor
+    volumes:
+      - ./gateway:/var/www/html                   # En desarrollo, los cambios se ven sin reconstruir la imagen
+    depends_on:
+      mysql-gateway:
+        condition: service_healthy                # Espera a que MySQL esté listo antes de arrancar
+
+# Volúmenes donde Docker guarda los datos de las bases de datos
 volumes:
   mysql-gateway-data:
