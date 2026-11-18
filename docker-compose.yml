@@ -1,0 +1,26 @@
+# Entorno de desarrollo local de Ferretería Cafetera.
+# El despliegue real del sistema se hace en Kubernetes (carpeta k8s/).
+services:
+
+  # Base de datos del API Gateway
+  mysql-gateway:
+    image: mysql:8.4                              # Imagen oficial de MySQL
+    container_name: mysql-gateway                 # Nombre del contenedor
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD} # Contraseña de root, viene del .env de la raíz
+      MYSQL_DATABASE: gateway_db                  # Crea la base de datos la primera vez que arranca
+      MYSQL_USER: gateway_user                    # Crea el usuario que usa el Gateway
+      MYSQL_PASSWORD: ${GATEWAY_DB_PASSWORD}      # Contraseña de ese usuario, viene del .env de la raíz
+    ports:
+      - "3307:3306"                               # 3307 en el computador, 3306 dentro del contenedor
+    volumes:
+      - mysql-gateway-data:/var/lib/mysql         # Guarda los datos aunque el contenedor se borre
+    healthcheck:                                  # Revisa cada 5 s si MySQL ya acepta conexiones
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+# Volúmenes donde se guarda los datos de las bases de datos
+volumes:
+  mysql-gateway-data:
