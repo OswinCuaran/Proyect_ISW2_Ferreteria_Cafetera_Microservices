@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    // Token compartido entre el Gateway y los microservicios
+    'interno' => [
+        'token' => env('INTERNAL_TOKEN'),
+        'timeout' => 2,   // Segundos máximos de espera al llamar a un servicio
+    ],
+
+    // Dirección de cada microservicio dentro de la red de Docker o de Kubernetes
+    'microservicios' => [
+        'inventario'     => env('INVENTARIO_URL'),
+        'proveedores'    => env('PROVEEDORES_URL'),
+        'catalogo'       => env('CATALOGO_URL'),
+        'notificaciones' => env('NOTIFICACIONES_URL'),
+        'compras'        => env('COMPRAS_URL'),
+        'reportes'       => env('REPORTES_URL'),
+    ],
+
 ];
