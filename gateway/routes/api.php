@@ -1,18 +1,18 @@
 <?php
 
+use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\AccountController;
-use App\Http\Controllers\ExpressController;
 
-Route::post('/register', [UserController::class, 'register']);
-Route::post('/login', [UserController::class, 'login']);
-Route::post('/logout', [UserController::class, 'logout'])->middleware('auth:sanctum');
-Route::post('/password/reset', [UserController::class, 'resetPassword']);
-Route::post('/password/update', [UserController::class, 'updatePassword'])->middleware('auth:sanctum');
+// Rutas públicas
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/password/question', [AuthController::class, 'securityQuestion']);
+    Route::post('/password/recover', [AuthController::class, 'recoverPassword']);
+});
 
-// FLASK
-Route::post('/example', [AccountController::class, 'example']);
-
-// NodeJS Express
-Route::post('/express_example', [ExpressController::class, 'express_example']);
+// Rutas protegidas: necesitan el token de Sanctum en el header Authorization
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/password', [AuthController::class, 'changePassword']);
+});
