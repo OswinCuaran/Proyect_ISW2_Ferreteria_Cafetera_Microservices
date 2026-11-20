@@ -6,7 +6,6 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Hash;
 
 // Autenticación: login, logout, usuario de la sesión y contraseña
@@ -15,7 +14,6 @@ class AuthController extends Controller
     // POST /api/login (pública)
     public function login(Request $request): JsonResponse
     {
-        // Si falta un campo, Laravel responde 400
         $data = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -23,21 +21,20 @@ class AuthController extends Controller
 
         $user = User::with('role')->where('email', $data['email'])->first();
 
-        // Mismo mensaje si el correo no existe o si la contraseña está mal
         if (! $user || ! Hash::check($data['password'], $user->password)) {
-            return $this->error('INVALID_CREDENTIALS', 'El correo o la contraseña no son correctos', 401);
+            return $this->error('CREDENCIALES_INVALIDAS', 'El correo o la contraseña no son correctos', 401);
         }
 
         if (! $user->is_active) {
-            return $this->error('INACTIVE_USER', 'El usuario está desactivado', 403);
+            return $this->error('USUARIO_INACTIVO', 'El usuario está desactivado, comuníquese con el administrador', 403);
         }
 
         $user->update(['last_login_at' => now()]);
 
-        // Crea el token de Sanctum. Se guarda con hash
         $token = $user->createToken('api')->plainTextToken;
 
         return response()->json([
+            'message' => "Bienvenido al sistema, {$user->first_name}",
             'token' => $token,
             'token_type' => 'Bearer',
             'user' => new UserResource($user),
@@ -45,12 +42,11 @@ class AuthController extends Controller
     }
 
     // POST /api/logout
-    public function logout(Request $request): Response
+    public function logout(Request $request): JsonResponse
     {
-        // Borra solo el token con el que se hizo esta petición
         $request->user()->currentAccessToken()->delete();
 
-        return response()->noContent(); // 204
+        return response()->json(['message' => 'Sesión cerrada correctamente']);
     }
 
     // GET /api/me
@@ -61,9 +57,9 @@ class AuthController extends Controller
 
     public function securityQuestion(Request $request): JsonResponse
     {
-        $data = $request->validate([
+        $data = validator($request->query(), [
             'email' => ['required', 'email'],
-        ]);
+        ])->validate();
 
         $user = User::with('securityQuestion')
             ->where('email', $data['email'])
@@ -71,14 +67,14 @@ class AuthController extends Controller
             ->first();
 
         if (! $user) {
-            return $this->error('NOT_FOUND', 'No existe un usuario activo con ese correo', 404);
+            return $this->error('NO_ENCONTRADO', 'No existe un usuario activo con ese correo', 404);
         }
 
         return response()->json(['question' => $user->securityQuestion->question]);
     }
 
-    // POST /api/password/recover
-    public function recoverPassword(Request $request): Response|JsonResponse
+    // POST /api/password/recover (pública)
+    public function recoverPassword(Request $request): JsonResponse
     {
         $data = $request->validate([
             'email' => ['required', 'email'],
@@ -90,19 +86,19 @@ class AuthController extends Controller
 
         // Compara lo que escribió el usuario con la respuesta guardada
         if (! $user || ! $user->checkSecurityAnswer($data['security_answer'])) {
-            return $this->error('INVALID_SECURITY_ANSWER', 'La respuesta de seguridad no es correcta', 401);
+            return $this->error('RESPUESTA_INCORRECTA', 'La respuesta de seguridad no es correcta', 401);
         }
 
-        $user->update(['password' => $data['new_password']]); // El modelo le aplica el hash
+        $user->update(['password' => $data['new_password']]);
 
         // Cierra todas las sesiones abiertas, por si alguien más tenía acceso
         $user->tokens()->delete();
 
-        return response()->noContent(); // 204
+        return response()->json(['message' => 'La contraseña se recuperó correctamente, inicie sesión con la nueva contraseña']);
     }
 
     // PUT /api/password
-    public function changePassword(Request $request): Response|JsonResponse
+    public function changePassword(Request $request): JsonResponse
     {
         $data = $request->validate([
             'current_password' => ['required', 'string'],
@@ -113,12 +109,12 @@ class AuthController extends Controller
 
         // 400 y no 401: el usuario sí está autenticado, lo que está mal es el dato
         if (! Hash::check($data['current_password'], $user->password)) {
-            return $this->error('INVALID_CURRENT_PASSWORD', 'La contraseña actual no es correcta', 400);
+            return $this->error('CONTRASENA_ACTUAL_INCORRECTA', 'La contraseña actual no es correcta', 400);
         }
 
         $user->update(['password' => $data['new_password']]);
         $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete();
 
-        return response()->noContent();
+        return response()->json(['message' => 'La contraseña se cambió correctamente']);
     }
 }
