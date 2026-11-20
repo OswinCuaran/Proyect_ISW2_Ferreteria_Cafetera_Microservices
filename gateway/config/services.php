@@ -51,4 +51,11 @@ return [
         'reportes'       => env('REPORTES_URL'),
     ],
 
+    // Datos del primer Administrador, los usa el UserSeeder
+    'admin' => [
+        'email' => env('ADMIN_EMAIL'),
+        'password' => env('ADMIN_PASSWORD'),
+        'security_answer' => env('ADMIN_SECURITY_ANSWER'),
+    ],
+
 ];

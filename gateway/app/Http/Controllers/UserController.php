@@ -2,116 +2,115 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\UserResource;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
     public function register(Request $request): JsonResponse
     {
-        $user = User::create($request->all());
-        return response()->json($user, 201);
-    }
-    
-    //Funcion para el login de usuario
-    public function login(Request $request)
-    {
-        $user = User::where('email', $request -> email)->first();
-        
-        if (!$user){
-            return response()->json([
-                "response" => "Este correo no existe"
-            ], 404);
-        }
-        if (!Hash::check($request->password, $user->password)){
-            return response()->json([
-                "response" => "Credenciales incorrectas"
-            ], 401);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            "token" => $token,
-            "user" => $user,
-            "response" => "Bienvenido al sistema"
-        ], 200);
-    }
-
-    //Funcion para el logout de usuario
-    public function logout(Request $request)
-    {
-        $request->user()->currentAccessToken()->delete();
-        return response() ->json([
-            "response" => "Sesión cerrada correctamente"
-        ], 200);
-    }
-
-    //Funcion para recupera contraseña mediante pregunta de seguridad
-    public function resetPassword(Request $request)
-    {
-        // Validamos que vengan todos los campos obligatorios
-        $request->validate([
-            'email' => 'required|email',
-            'question' => 'required|string',
-            'answer' => 'required|string',
-            'password' => 'required|string|min:8',
-            'password_two' => 'required|string|same:password'       //Garantiza que ambas contraseñas sean iguales
+        $data = $request->validate([
+            'document_type' => ['required', 'in:CC,CE,PA'],
+            'document_number' => ['required', 'string', 'max:20'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:120'],
+            'password' => ['required', 'string', 'min:8'],
+            'role_id' => ['required', 'integer', 'exists:roles,id'],
+            'warehouse_id' => ['nullable', 'integer', 'min:1'],
+            'security_question_id' => ['required', 'integer', 'exists:security_questions,id'],
+            'security_answer' => ['required', 'string', 'max:100'],
         ]);
-        //Buscamos el ususario por el correo electronico
-        $user = User::where('email', $request->email)->first();
-        if(!$user){
-            return response() ->json([
-                "response" => "Usuario no encontrado"
-            ], 404);
+        if (User::where('email', $data['email'])->exists()) {
+            return $this->error('CORREO_DUPLICADO', 'Ya existe un usuario con ese correo', 409);
         }
-        //Normalizamos y comparamos respuestas (ignorandod mayusculas. minusculas y espacios extra)
-        $respuestaGuardada = Str::lower(trim($user->answer));
-        $respuestaIngresada = Str::lower(trim($user->answer));
-
-        if($respuestaGuardada !== $respuestaIngresada){
-            return response()->json([
-                "response" => "La respuesta a la pregunta de seguridad es incorrecta"
-            ], 400);
+        if (User::where('document_type', $data['document_type'])->where('document_number', $data['document_number'])->exists()) {
+            return $this->error('DOCUMENTO_DUPLICADO', 'Ya existe un usuario con ese documento', 409);
         }
-        //Cambiar y encriptar la nueva contraseña
-        $user->password = Hash::make($request->password);
-        $user->save();
-
+        $data['warehouse_id'] = $this->warehouseFor($data['role_id'], $data['warehouse_id'] ?? null);
+        $user = User::create($data);
         return response()->json([
-            "response" => "Contraseña actualizada correctamente"
-        ], 200);
+            'message' => 'Usuario registrado correctamente',
+            'user' => new UserResource($user->fresh('role')),
+        ], 201);
     }
 
-    //Funcion para cambiar la contraseña desde la cuenta activa
-    public function updatePassword(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        //Validamos unicamente las claves
-        $request->validate([
-            'current_password' => 'required|string',
-            'password' => 'required|string|min:8',
-            'password_two' => 'required|string|same:password'
-        ]);
-        //Obtenemos el usuario autenticado a traves del token Sanctum
-        $user = $request->user();
-        //Validar que la contraseña ingresada coincida con la de la base de datos
-        if(!Hash::check($request->current_password, $user->password)){
-            return response() -> json([
-                "response" => "La contraña actual es incorrecta"
-            ], 400);
-        }
-        //Guardamos y encriptamos la nueva contraseña
-        $user->password = Hash::make($request->password);
-        $user->save();
+        $users = User::with('role')
+            ->when($request->query('role'), fn ($query, $role) => $query->whereHas('role', fn ($r) => $r->where('name', $role)))
+            ->when($request->query('warehouse_id'), fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->when($request->has('is_active'), fn ($query) => $query->where('is_active', $request->boolean('is_active')))
+            ->orderBy('first_name')
+            ->get();
 
-        return response()->json([
-            "response" => "Se actualizo la contraseña correctamente"
-        ], 200);
+        return response()->json(UserResource::collection($users));
     }
 
-}//FIN
+    public function update(Request $request, User $user): JsonResponse
+    {
+        $data = $request->validate([
+            'first_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'last_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'email' => ['sometimes', 'required', 'email', 'max:120'],
+            'role_id' => ['sometimes', 'required', 'integer', 'exists:roles,id'],
+            'warehouse_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+        ]);
+        // El correo nuevo no puede ser de otro usuario
+        if (isset($data['email']) && User::where('email', $data['email'])->where('id', '!=', $user->id)->exists()) {
+            return $this->error('CORREO_DUPLICADO', 'Ya existe un usuario con ese correo', 409);
+        }
+        if (isset($data['role_id']) && $user->id === $request->user()->id && (int) $data['role_id'] !== $user->role_id) {
+            return $this->error('OPERACION_NO_PERMITIDA', 'No puede cambiar su propio rol', 400);
+        }
+        $data['warehouse_id'] = $this->warehouseFor(
+            $data['role_id'] ?? $user->role_id,
+            array_key_exists('warehouse_id', $data) ? $data['warehouse_id'] : $user->warehouse_id,
+        );
+        $user->update($data);
+        return response()->json([
+            'message' => 'Usuario actualizado correctamente',
+            'user' => new UserResource($user->fresh('role')),
+        ]);
+    }
+
+    public function deactivate(Request $request, User $user): JsonResponse
+    {
+        if ($user->id === $request->user()->id) {
+            return $this->error('OPERACION_NO_PERMITIDA', 'No puede desactivar su propia cuenta', 400);
+        }
+        $user->update(['is_active' => false]);
+        $user->tokens()->delete();
+        return response()->json([
+            'message' => 'Usuario desactivado correctamente',
+            'user' => new UserResource($user->load('role')),
+        ]);
+    }
+
+    public function activate(User $user): JsonResponse
+    {
+        $user->update(['is_active' => true]);
+        return response()->json([
+            'message' => 'Usuario activado correctamente',
+            'user' => new UserResource($user->load('role')),
+        ]);
+    }
+
+    private function warehouseFor(int $roleId, ?int $warehouseId): ?int
+    {
+        $role = Role::findOrFail($roleId);
+        if ($role->name === 'ADMINISTRADOR') {
+            return null;
+        }
+        if (! $warehouseId) {
+            throw ValidationException::withMessages([
+                'warehouse_id' => 'El Operador y el Vendedor deben tener una bodega asignada.',
+            ]);
+        }
+        return $warehouseId;
+    }
+}
