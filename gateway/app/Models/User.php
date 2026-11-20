@@ -64,6 +64,12 @@ class User extends Authenticatable
         return in_array($this->role->name, $roles);
     }
 
+    // Revisa si el rol del usuario tiene un permiso (lo usa la redirección a los microservicios)
+    public function hasPermission(string $code): bool
+    {
+        return $this->role->permissions->contains('code', $code);
+    }
+
     // Cada usuario tiene un rol
     public function role(): BelongsTo
     {
