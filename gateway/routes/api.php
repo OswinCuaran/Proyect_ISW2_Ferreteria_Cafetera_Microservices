@@ -28,3 +28,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/security-questions', [SecurityQuestionController::class, 'index']);
     });
 });
+
+// Rutas internas: solo para los microservicios, con el token interno
+Route::middleware('internal')->prefix('internal')->group(function () {
+    // Notificaciones la usa para saber a quién avisar
+    Route::get('/users', [UserController::class, 'index']);
+});

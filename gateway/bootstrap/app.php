@@ -18,8 +18,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(fn () => null);
+
+        // Se ejecuta de primero en todas las rutas de /api
+        $middleware->api(prepend: [
+            \App\Http\Middleware\CorrelationId::class,
+        ]);
+
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
+            'internal' => \App\Http\Middleware\VerifyInternalToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
