@@ -162,6 +162,7 @@ services:
       DB_USERNAME: catalogo_user
       DB_PASSWORD: ${CATALOGO_DB_PASSWORD}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      PROVEEDORES_URL: http://proveedores:8000 
     volumes:
       - ./catalogo:/app
       - /app/node_modules                       # Evita que tu carpeta tape los node_modules del contenedor

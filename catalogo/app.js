@@ -2,11 +2,13 @@ const express = require('express');
 const internalToken = require('./middleware/internalToken');
 const pool = require('./db');
 const categoriesRouter = require('./routes/categories');
+const productsRouter = require('./routes/products');
 const app = express();
 
 app.use(internalToken);
 app.use(express.json());
 app.use('/categories', categoriesRouter);
+app.use('/products', productsRouter);
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'catalogo' }));
 
 // Aqui iran las rutas de productos
@@ -26,6 +28,14 @@ app.use((err, req, res, next) => {
     return res.status(400).json({
       error: 'DATOS_INVALIDOS',
       message: 'El cuerpo de la peticion no es un JSON valido',
+      correlation_id: req.correlationId,
+    });
+  }
+  if (err.name === 'ServiceUnavailableError') {
+    console.error(`${err.message} correlation_id=${req.correlationId}`);
+    return res.status(503).json({
+      error: 'SERVICIO_NO_DISPONIBLE',
+      message: `El servicio de ${err.service} no esta disponible en este momento`,
       correlation_id: req.correlationId,
     });
   }
