@@ -1,7 +1,5 @@
 from rest_framework import serializers
-
 from .models import Supplier, SupplierContact
-
 
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
@@ -11,12 +9,11 @@ class SupplierSerializer(serializers.ModelSerializer):
             "email", "address", "city", "delivery_days", "is_active",
         ]
         read_only_fields = ["id"]
+        read_only_fields = ["id", "is_active", "created_at", "updated_at"]
         extra_kwargs = {"nit": {"validators": []}}
-
 
 class ContactSerializer(serializers.ModelSerializer):
     supplier_id = serializers.IntegerField(read_only=True)
-
     class Meta:
         model = SupplierContact
         fields = [

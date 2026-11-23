@@ -32,7 +32,7 @@ services:
       mysql-gateway:
         condition: service_healthy                # Espera a que MySQL esté listo antes de arrancar
   
-  #base de datos proveedores
+  # Base de datos proveedores
   mysql-proveedores:
     image: mysql:8.4
     container_name: mysql-proveedores
@@ -124,6 +124,19 @@ services:
     volumes:
       - mysql-catalogo-data:/var/lib/mysql
       - ./catalogo/database/init.sql:/docker-entrypoint-initdb.d/init.sql   # Crea las tablas la primera vez
+  # Base de datos de Compras
+  mysql-compras:
+    image: mysql:8.4
+    container_name: mysql-compras
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: compras_db
+      MYSQL_USER: compras_user
+      MYSQL_PASSWORD: ${COMPRAS_DB_PASSWORD}
+    ports:
+      - "3311:3306"                               # 3311 en el computador
+    volumes:
+      - mysql-compras-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 5s
@@ -150,6 +163,29 @@ services:
     depends_on:
       mysql-catalogo:
         condition: service_healthy
+  # Microservicio de Compras y devoluciones (Flask)
+  compras:
+    build: ./compras                              # Se construye desde compras/Dockerfile
+    container_name: compras
+    ports:
+      - "5001:5000"                               # 5001 en el computador, 5000 dentro del contenedor
+    environment:
+      DB_HOST: mysql-compras
+      DB_PORT: 3306
+      DB_DATABASE: compras_db
+      DB_USERNAME: compras_user
+      DB_PASSWORD: ${COMPRAS_DB_PASSWORD}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      INVENTARIO_URL: http://inventario:8000      # Registra las entradas y salidas de stock
+      PROVEEDORES_URL: http://proveedores:8000    # Valida el proveedor de la orden
+    volumes:
+      - ./compras:/app
+    depends_on:
+      mysql-compras:
+        condition: service_healthy
+      inventario:
+        condition: service_started
+
 
 # Volúmenes donde Docker guarda los datos de las bases de datos
 volumes:
@@ -157,3 +193,4 @@ volumes:
   mysql-proveedores-data:
   mysql-inventario-data:
   mysql-catalogo-data:
+  mysql-compras-data:
