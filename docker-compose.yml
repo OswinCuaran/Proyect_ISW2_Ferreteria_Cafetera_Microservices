@@ -110,6 +110,25 @@ services:
       mysql-inventario:
         condition: service_healthy
 
+  # Base de datos de Catalogo
+  mysql-catalogo:
+    image: mysql:8.4
+    container_name: mysql-catalogo
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: catalogo_db
+      MYSQL_USER: catalogo_user
+      MYSQL_PASSWORD: ${CATALOGO_DB_PASSWORD}
+    ports:
+      - "3310:3306"
+    volumes:
+      - mysql-catalogo-data:/var/lib/mysql
+      - ./catalogo/database/init.sql:/docker-entrypoint-initdb.d/init.sql   # Crea las tablas la primera vez
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
   # Base de datos de Compras
   mysql-compras:
     image: mysql:8.4
@@ -129,6 +148,26 @@ services:
       timeout: 3s
       retries: 20
 
+  # Microservicio de Catalogo (Express)
+  catalogo:
+    build: ./catalogo
+    container_name: catalogo
+    ports:
+      - "3001:3000"
+    command: ["node", "--watch", "app.js"]      # Reinicia solo al guardar cambios
+    environment:
+      DB_HOST: mysql-catalogo
+      DB_PORT: 3306
+      DB_DATABASE: catalogo_db
+      DB_USERNAME: catalogo_user
+      DB_PASSWORD: ${CATALOGO_DB_PASSWORD}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+    volumes:
+      - ./catalogo:/app
+      - /app/node_modules                       # Evita que tu carpeta tape los node_modules del contenedor
+    depends_on:
+      mysql-catalogo:
+        condition: service_healthy
   # Microservicio de Compras y devoluciones (Flask)
   compras:
     build: ./compras                              # Se construye desde compras/Dockerfile
@@ -158,4 +197,5 @@ volumes:
   mysql-gateway-data:
   mysql-proveedores-data:
   mysql-inventario-data:
+  mysql-catalogo-data:
   mysql-compras-data:

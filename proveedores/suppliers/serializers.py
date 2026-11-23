@@ -7,8 +7,8 @@ class SupplierSerializer(serializers.ModelSerializer):
         fields = [
             "id", "nit", "person_type", "legal_name", "trade_name", "phone",
             "email", "address", "city", "delivery_days", "is_active",
-            "created_at", "updated_at",
         ]
+        read_only_fields = ["id"]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
         extra_kwargs = {"nit": {"validators": []}}
 
@@ -18,6 +18,6 @@ class ContactSerializer(serializers.ModelSerializer):
         model = SupplierContact
         fields = [
             "id", "supplier_id", "name", "position", "phone", "email",
-            "is_primary", "created_at", "updated_at",
+            "is_primary", 
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id"]
