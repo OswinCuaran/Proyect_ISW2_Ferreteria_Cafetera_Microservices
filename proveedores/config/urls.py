@@ -30,4 +30,6 @@ handler500 = server_error
 urlpatterns = [
     path("health", health),
     path("", views.supplier_list),
+    path("<int:pk>", views.supplier_detail),
+    path("<int:pk>/deactivate", views.supplier_deactivate),
 ]
