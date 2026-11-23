@@ -1,5 +1,4 @@
-# Entorno de desarrollo local de Ferretería Cafetera.
-# El despliegue real del sistema se hace en Kubernetes (carpeta k8s/).
+# Ferretería Cafetera: cada microservicio y cada base de datos en su propio contenedor.
 services:
 
   # Base de datos del API Gateway
@@ -71,7 +70,48 @@ services:
       mysql-proveedores:
         condition: service_healthy
 
+  # Base de datos de Inventario
+  mysql-inventario:
+    image: mysql:8.4
+    container_name: mysql-inventario
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: inventario_db
+      MYSQL_USER: inventario_user
+      MYSQL_PASSWORD: ${INVENTARIO_DB_PASSWORD}
+    ports:
+      - "3308:3306"                               # 3308 en el computador
+    volumes:
+      - mysql-inventario-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Microservicio de Inventario (Django)
+  inventario:
+    build: ./inventario                           # Se construye desde inventario/Dockerfile
+    container_name: inventario
+    ports:
+      - "8001:8000"                               # 8001 en el computador, 8000 dentro del contenedor
+    environment:
+      DB_HOST: mysql-inventario                   # Nombre del contenedor de su base de datos
+      DB_PORT: 3306
+      DB_DATABASE: inventario_db
+      DB_USERNAME: inventario_user
+      DB_PASSWORD: ${INVENTARIO_DB_PASSWORD}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}           # Token interno
+      CATALOGO_URL: http://catalogo:3000          # Para validar que el producto exista
+      NOTIFICACIONES_URL: http://notificaciones:3000  # Para las alertas de stock bajo
+    volumes:
+      - ./inventario:/app                         # En desarrollo, el código de tu carpeta
+    depends_on:
+      mysql-inventario:
+        condition: service_healthy
+
 # Volúmenes donde Docker guarda los datos de las bases de datos
 volumes:
   mysql-gateway-data:
   mysql-proveedores-data:
+  mysql-inventario-data:
