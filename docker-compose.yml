@@ -110,7 +110,7 @@ services:
       mysql-inventario:
         condition: service_healthy
 
-   # Base de datos de Catalogo
+  # Base de datos de Catalogo
   mysql-catalogo:
     image: mysql:8.4
     container_name: mysql-catalogo
@@ -124,6 +124,11 @@ services:
     volumes:
       - mysql-catalogo-data:/var/lib/mysql
       - ./catalogo/database/init.sql:/docker-entrypoint-initdb.d/init.sql   # Crea las tablas la primera vez
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
   # Base de datos de Compras
   mysql-compras:
     image: mysql:8.4
