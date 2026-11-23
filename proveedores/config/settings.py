@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Clave de desarrollo generada por Django (no usar en produccion)
 SECRET_KEY = 'django-insecure-rhs!2e!ine)$4c1m1+(uml$ej4#9+p+n*_+xkhny#m3jjnhmdg'
 
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 # El Gateway llega con el host "proveedores:8000"
 ALLOWED_HOSTS = ["*"]
@@ -112,7 +112,15 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # El Gateway ya autentica al usuario: el servicio no usa sesiones ni usuarios de Django
 
 REST_FRAMEWORK = {
+        "EXCEPTION_HANDLER": "suppliers.errors.custom_exception_handler",
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": [],
     "UNAUTHENTICATED_USER": None,
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
 }
