@@ -1,16 +1,15 @@
 const express = require('express');
 const internalToken = require('./middleware/internalToken');
 const pool = require('./db');
-
+const categoriesRouter = require('./routes/categories');
 const app = express();
 
-// Primero el token (un 401 no debe depender de que el JSON sea valido)
 app.use(internalToken);
 app.use(express.json());
-
+app.use('/categories', categoriesRouter);
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'catalogo' }));
 
-// Aqui iran las rutas de productos y categorias
+// Aqui iran las rutas de productos
 
 // Ruta que no existe
 app.use((req, res) => {

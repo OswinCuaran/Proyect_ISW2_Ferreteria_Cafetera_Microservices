@@ -11,7 +11,6 @@ from .serializers import ContactSerializer, SupplierSerializer
 def find_supplier(pk):
     return Supplier.objects.filter(pk=pk).first()
 
-
 def supplier_not_found(request):
     return error_response(request, 404, "NO_ENCONTRADO", "El proveedor no existe")
 
