@@ -32,4 +32,5 @@ urlpatterns = [
     path("", views.supplier_list),
     path("<int:pk>", views.supplier_detail),
     path("<int:pk>/deactivate", views.supplier_deactivate),
+    path("<int:pk>/contacts", views.supplier_contacts),
 ]

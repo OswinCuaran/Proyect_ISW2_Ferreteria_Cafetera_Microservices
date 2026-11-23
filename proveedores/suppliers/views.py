@@ -1,10 +1,11 @@
+from django.db import transaction
 from django.db.models import Q
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .errors import error_response
 from .models import Supplier
-from .serializers import SupplierSerializer
+from .serializers import ContactSerializer, SupplierSerializer
 
 
 def find_supplier(pk):
@@ -95,3 +96,27 @@ def supplier_deactivate(request, pk):
     supplier.is_active = False
     supplier.save()
     return Response(SupplierSerializer(supplier).data)
+
+
+# ---------- GET /{id}/contacts y POST /{id}/contacts ----------
+
+@api_view(["GET", "POST"])
+def supplier_contacts(request, pk):
+    supplier = find_supplier(pk)
+    if supplier is None:
+        return supplier_not_found(request)
+
+    if request.method == "GET":
+        contacts = supplier.contacts.order_by("id")
+        return Response(ContactSerializer(contacts, many=True).data)
+
+    serializer = ContactSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    # Solo puede haber un contacto principal por proveedor
+    with transaction.atomic():
+        if serializer.validated_data.get("is_primary"):
+            supplier.contacts.filter(is_primary=True).update(is_primary=False)
+        serializer.save(supplier=supplier)
+
+    return Response(serializer.data, status=201)
