@@ -1,2 +1,2 @@
-# Los scripts .sh corren en Linux (dentro de los contenedores): siempre con finales de línea LF
+* text=auto
 *.sh text eol=lf

@@ -1,7 +1,5 @@
 from rest_framework import serializers
-
 from .models import Supplier, SupplierContact
-
 
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
@@ -12,13 +10,10 @@ class SupplierSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
-        # El NIT repetido se responde como 409 DUPLICADO desde la vista, no como 400
         extra_kwargs = {"nit": {"validators": []}}
-
 
 class ContactSerializer(serializers.ModelSerializer):
     supplier_id = serializers.IntegerField(read_only=True)
-
     class Meta:
         model = SupplierContact
         fields = [
