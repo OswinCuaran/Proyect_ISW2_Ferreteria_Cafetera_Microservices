@@ -31,6 +31,44 @@ services:
     depends_on:
       mysql-gateway:
         condition: service_healthy                # Espera a que MySQL esté listo antes de arrancar
+  
+  #base de datos proveedores
+  mysql-proveedores:
+    image: mysql:8.4
+    container_name: mysql-proveedores
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: proveedores_db
+      MYSQL_USER: proveedores_user
+      MYSQL_PASSWORD: ${PROVEEDORES_DB_PASSWORD}
+    ports:
+      - "3309:3306"
+    volumes:
+      - mysql-proveedores-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20 
+
+  # Microservicio de Proveedores (Django)
+  proveedores:
+    build: ./proveedores
+    container_name: proveedores
+    ports:
+      - "8002:8000"
+    environment:
+      DB_HOST: mysql-proveedores
+      DB_PORT: 3306
+      DB_DATABASE: proveedores_db
+      DB_USERNAME: proveedores_user
+      DB_PASSWORD: ${PROVEEDORES_DB_PASSWORD}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+    volumes:
+      - ./proveedores:/app
+    depends_on:
+      mysql-proveedores:
+        condition: service_healthy
 
   # Base de datos de Inventario
   mysql-inventario:
@@ -75,4 +113,5 @@ services:
 # Volúmenes donde Docker guarda los datos de las bases de datos
 volumes:
   mysql-gateway-data:
+  mysql-proveedores-data:
   mysql-inventario-data:
