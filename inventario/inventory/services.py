@@ -61,12 +61,24 @@ def check_product(request, product_id):
 def needs_alert(stock):
     return stock.minimum_stock > 0 and stock.quantity < stock.minimum_stock and not stock.alert_sent
 
+def product_details(product_id, headers):
+    if not settings.CATALOGO_URL:
+        return {}
+    try:
+        response = requests.get(f"{settings.CATALOGO_URL}/products/{product_id}", headers=headers, timeout=settings.SERVICE_TIMEOUT)
+        product = response.json() if response.ok else {}
+    except (requests.RequestException, ValueError):
+        return {}
+    if not isinstance(product, dict) or not product.get("code"):
+        return {}
+    return {"product_code": product["code"], "product_name": product.get("name", "")}
+
 def schedule_low_stock_alert(request, warehouse, stock):
     data = {
+        "product_id": stock.product_id,
         "warehouse_id": warehouse.id,
         "warehouse": warehouse.name,
-        "product_id": stock.product_id,
-        "quantity": float(stock.quantity),
+        "current_quantity": float(stock.quantity),
         "minimum_stock": float(stock.minimum_stock),
     }
     headers = service_headers(request)
@@ -77,6 +89,7 @@ def send_low_stock_alert(data, headers):
     if not settings.NOTIFICACIONES_URL:
         logger.warning("Stock bajo del producto %s en %s, pero no hay NOTIFICACIONES_URL configurada correlation_id=%s", data["product_id"], data["warehouse"], correlation_id)
         return
+    data.update(product_details(data["product_id"], headers))
     try:
         response = requests.post(f"{settings.NOTIFICACIONES_URL}/alerts", json=data, headers=headers, timeout=settings.SERVICE_TIMEOUT)
         response.raise_for_status()

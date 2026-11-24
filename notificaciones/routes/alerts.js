@@ -2,10 +2,7 @@ const express = require('express');
 const { getRecipients } = require('../clients/gateway');
 const { sendMail } = require('../utils/mailer');
 const router = express.Router();
-const REQUIRED = [
-  'product_id', 'product_code', 'product_name',
-  'warehouse_id', 'current_quantity', 'minimum_stock',
-];
+const REQUIRED = ['product_id', 'warehouse_id', 'current_quantity', 'minimum_stock'];
 
 function validate(body) {
   const errors = [];
@@ -17,15 +14,15 @@ function validate(body) {
   if (errors.length) return errors;
   if (!Number.isInteger(body.product_id) || body.product_id < 1) errors.push('product_id debe ser un entero positivo');
   if (!Number.isInteger(body.warehouse_id) || body.warehouse_id < 1) errors.push('warehouse_id debe ser un entero positivo');
-  if (typeof body.product_code !== 'string') errors.push('product_code debe ser texto');
-  if (typeof body.product_name !== 'string') errors.push('product_name debe ser texto');
+  if (body.product_code != null && typeof body.product_code !== 'string') errors.push('product_code debe ser texto');
+  if (body.product_name != null && typeof body.product_name !== 'string') errors.push('product_name debe ser texto');
   if (typeof body.current_quantity !== 'number' || body.current_quantity < 0) errors.push('current_quantity debe ser un número mayor o igual a 0');
   if (typeof body.minimum_stock !== 'number' || body.minimum_stock < 0) errors.push('minimum_stock debe ser un número mayor o igual a 0');
   return errors;
 }
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Reintenta hasta 3 veces, esperando 1 s y luego 2 s
 async function withRetries(task, correlationId) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -38,7 +35,6 @@ async function withRetries(task, correlationId) {
   }
 }
 
-// Se ejecuta luego de responder 202
 async function processAlert(alert, correlationId) {
   try {
     const recipients = await withRetries(() => getRecipients(alert.warehouse_id, correlationId), correlationId);
@@ -46,10 +42,12 @@ async function processAlert(alert, correlationId) {
       console.warn(`ADVERTENCIA sin destinatarios para la bodega ${alert.warehouse_id} correlation_id=${correlationId}`);
       return;
     }
-    const subject = `Stock bajo: ${alert.product_name} (bodega ${alert.warehouse_id})`;
+    const product = alert.product_name ? `${alert.product_code} - ${alert.product_name}` : `${alert.product_id}`;
+    const warehouse = alert.warehouse || alert.warehouse_id;
+    const subject = `Stock bajo: ${alert.product_name || 'producto ' + alert.product_id} (${warehouse})`;
     const text =
-      `El producto ${alert.product_code} - ${alert.product_name} quedó por debajo del stock mínimo.\n\n` +
-      `Bodega: ${alert.warehouse_id}\n` +
+      `El producto ${product} quedó por debajo del stock mínimo.\n\n` +
+      `Bodega: ${warehouse}\n` +
       `Cantidad actual: ${alert.current_quantity}\n` +
       `Stock mínimo: ${alert.minimum_stock}\n\n` +
       `Se recomienda reabastecer pronto.`;
@@ -69,8 +67,8 @@ router.post('/', (req, res) => {
       correlation_id: req.correlationId,
     });
   }
-  // Se responde ya y el trabajo sigue en segundo plano
   res.status(202).json({ message: 'Alerta recibida' });
   processAlert(req.body, req.correlationId);
 });
+
 module.exports = router;
