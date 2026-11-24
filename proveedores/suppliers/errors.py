@@ -6,7 +6,6 @@ from rest_framework.views import exception_handler
 logger = logging.getLogger(__name__)
 
 def error_response(request, status, code, message, errors=None):
-    """Arma la respuesta de error con el formato comun de todos los servicios."""
     body = {
         "error": code,
         "message": message,
@@ -17,7 +16,6 @@ def error_response(request, status, code, message, errors=None):
     return Response(body, status=status)
 
 def custom_exception_handler(exc, context):
-    """Convierte los errores de DRF al formato comun."""
     request = context["request"]
     response = exception_handler(exc, context)
     if response is None:

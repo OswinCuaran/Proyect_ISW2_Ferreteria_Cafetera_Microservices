@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\SecurityQuestion;
 use Illuminate\Database\Seeder;
 
-// Crea las preguntas de seguridad para recuperar la contraseña
 class SecurityQuestionSeeder extends Seeder
 {
     public function run(): void
@@ -17,7 +16,6 @@ class SecurityQuestionSeeder extends Seeder
             '¿Cuál fue su primer trabajo?',
             '¿Cuál es el nombre de su mejor amigo de la infancia?',
         ];
-
         foreach ($questions as $question) {
             SecurityQuestion::updateOrCreate(['question' => $question], ['is_active' => true]);
         }

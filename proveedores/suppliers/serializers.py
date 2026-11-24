@@ -18,6 +18,6 @@ class ContactSerializer(serializers.ModelSerializer):
         model = SupplierContact
         fields = [
             "id", "supplier_id", "name", "position", "phone", "email",
-            "is_primary", 
+            "is_primary",
         ]
         read_only_fields = ["id"]

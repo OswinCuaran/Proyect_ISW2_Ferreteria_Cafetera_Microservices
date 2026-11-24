@@ -5,9 +5,7 @@ function internalToken(req, res, next) {
   req.correlationId = correlationId;
   res.set('X-Correlation-Id', correlationId);
   console.log(`${req.method} ${req.originalUrl} correlation_id=${correlationId}`);
-
   if (req.path === '/health') return next();
-
   const expected = Buffer.from(process.env.INTERNAL_TOKEN || '');
   const received = Buffer.from(req.get('X-Internal-Token') || '');
   if (!expected.length || expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {

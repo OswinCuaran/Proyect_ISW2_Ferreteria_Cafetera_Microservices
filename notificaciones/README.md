@@ -1,87 +1,56 @@
 # Microservicio de Notificaciones y alertas
 
-Envía por correo las alertas de stock bajo. Es un servicio sin estado: no tiene base de datos y no guarda información.
+Envía por correo las alertas de stock bajo. No tiene base de datos: recibe la alerta de Inventario, busca a quién avisar y envía el correo.
 
 ## Tecnología
 
 | | |
 |---|---|
-| Lenguaje | JavaScript (Node.js 22) |
+| Lenguaje | JavaScript (Node.js) |
 | Framework | Express |
-| Base de datos | Ninguna, es un servicio sin estado |
-| Puerto del contenedor | 3000 (3002 en el computador) |
-| Dirección interna | `http://notificaciones:3000` |
+| Base de datos | No tiene |
+| Puerto del contenedor | 3000 |
+| Nombre del contenedor | `notificaciones` (`http://notificaciones:3000`, en tu equipo `http://localhost:3002`) |
 
 ## Funcionalidades
 
 - Recibe de Inventario la alerta de un producto que quedó por debajo del stock mínimo.
-- Valida los datos y responde `202` de inmediato.
-- En segundo plano consulta al Gateway los destinatarios (los Operadores de la bodega afectada y los Administradores) y les envía el correo.
-- Si falla la consulta o el envío, reintenta hasta 3 veces y deja el error en el log con el Correlation ID de la petición.
-- Si no hay un servidor SMTP configurado, escribe el correo en el log (`[CORREO SIMULADO]`), lo que permite probar sin una cuenta de correo.
-
-No se expone a través del Gateway: solo recibe llamadas internas, con el token interno.
-
-## Rutas
-
-| Método | Ruta | Descripción | Token |
-|---|---|---|---|
-| GET | `/health` | Estado del servicio | No |
-| POST | `/alerts` | Recibe una alerta de stock bajo | Sí |
-
-### `POST /alerts`
-
-Cuerpo:
-
-```json
-{
-  "product_id": 1,
-  "product_code": "ELE-CAB-12",
-  "product_name": "Cable electrico calibre 12 AWG",
-  "warehouse_id": 1,
-  "current_quantity": 8,
-  "minimum_stock": 50
-}
-```
-
-| Código | Cuándo |
-|---|---|
-| 202 | Alerta recibida. El correo se envía en segundo plano. |
-| 400 | `DATOS_INVALIDOS`: falta un campo o tiene un tipo incorrecto. |
-| 401 | `TOKEN_INTERNO_INVALIDO`: falta el token o es incorrecto. |
-
-Los errores tienen la forma `{ "error", "message", "correlation_id" }`.
+- Busca en el Gateway a los Operadores de esa bodega y a los Administradores.
+- Envía el correo con el producto, la bodega, la cantidad actual y el stock mínimo.
+- Si no hay un servidor de correo configurado, escribe el correo en el log del contenedor, lo que permite probar las alertas sin una cuenta de correo.
 
 ## Se comunica con
 
-- **Gateway:** `GET /api/internal/users?warehouse_id=<bodega>&role=OPERADOR` y `GET /api/internal/users?role=ADMINISTRADOR`, con el token interno y 2 segundos de espera máxima. El Administrador no tiene bodega, por eso se consulta sin `warehouse_id`.
-- **Servidor SMTP:** envía el correo de alerta.
-- Lo llama **Inventario**.
+- **Gateway:** consulta los usuarios activos de la bodega afectada y los Administradores.
+- **Servidor de correo (SMTP):** envía la alerta.
+- Lo llama **Inventario** cuando un producto baja del stock mínimo.
 
-## Variables de entorno
+## Rutas
 
-Los nombres están en `.env.example`. Los valores reales nunca se suben a GitHub.
+Todas exigen el header `X-Internal-Token`, salvo `/health`. Este servicio no pasa por el Gateway porque ningún usuario lo llama directamente.
 
-| Variable | Para qué sirve |
-|---|---|
-| `INTERNAL_TOKEN` | Token compartido entre los servicios |
-| `GATEWAY_URL` | Dirección del Gateway (`http://gateway:8000`) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Servidor de correo. Si `SMTP_HOST` está vacío, el correo se simula en el log |
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/health` | Estado del servicio |
+| POST | `/alerts` | Recibe una alerta de stock bajo |
 
-## Cómo probarlo
+La alerta lleva `product_id`, `warehouse_id`, `current_quantity` y `minimum_stock`. Inventario también envía `product_code`, `product_name` y `warehouse` para que el correo muestre el nombre del producto y de la bodega.
 
-Desde la raíz del proyecto:
+## Reglas de negocio
+
+- Responde `202` apenas recibe la alerta y envía el correo en segundo plano, para que Inventario no tenga que esperar.
+- Si la consulta al Gateway o el envío del correo fallan, lo intenta hasta tres veces y deja el error en el log con el Correlation ID.
+- Cada correo se envía una sola vez por persona, aunque un usuario aparezca en las dos consultas.
+- Si `SMTP_HOST` está vacío, el correo aparece en el log como `[CORREO SIMULADO]`.
+
+## Cómo levantarlo
 
 ```bash
 docker compose up -d --build notificaciones
-curl -i http://localhost:3002/health
-
-curl -i -X POST http://localhost:3002/alerts \
-  -H "X-Internal-Token: $TOKEN" -H "Content-Type: application/json" \
-  -d '{"product_id":1,"product_code":"TOR-001","product_name":"Tornillo","warehouse_id":1,"current_quantity":8,"minimum_stock":50}'
-
-docker compose logs --tail=15 notificaciones
+docker logs -f notificaciones
 ```
+
+Las alertas se ven en el log del contenedor cuando una venta deja un producto por debajo de su stock mínimo.
 
 ## Requisitos que cubre
 

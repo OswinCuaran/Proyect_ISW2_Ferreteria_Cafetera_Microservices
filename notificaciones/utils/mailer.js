@@ -26,4 +26,5 @@ async function sendMail({ to, subject, text }, correlationId) {
     text,
   });
 }
+
 module.exports = { sendMail };

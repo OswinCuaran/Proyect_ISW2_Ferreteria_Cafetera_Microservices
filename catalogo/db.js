@@ -8,7 +8,7 @@ const pool = mysql.createPool({
   database: process.env.DB_DATABASE,
   waitForConnections: true,
   connectionLimit: 10,
-  decimalNumbers: true,   // Los precios (DECIMAL) llegan como numero, no como texto
+  decimalNumbers: true,
 });
 
 module.exports = pool;

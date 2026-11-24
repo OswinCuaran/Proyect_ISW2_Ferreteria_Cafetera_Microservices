@@ -1,19 +1,6 @@
 <?php
 
 return [
-
-    /*
-    |--------------------------------------------------------------------------
-    | Third Party Services
-    |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Resend, Postmark, AWS, and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
-    */
-
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
@@ -35,13 +22,11 @@ return [
         ],
     ],
 
-    // Token compartido entre el Gateway y los microservicios
     'interno' => [
         'token' => env('INTERNAL_TOKEN'),
-        'timeout' => 2,   // Segundos máximos de espera al llamar a un servicio
+        'timeout' => 2,
     ],
 
-    // Dirección de cada microservicio dentro de la red de Docker o de Kubernetes
     'microservicios' => [
         'inventario'     => env('INVENTARIO_URL'),
         'proveedores'    => env('PROVEEDORES_URL'),
@@ -51,7 +36,6 @@ return [
         'reportes'       => env('REPORTES_URL'),
     ],
 
-    // Datos del primer Administrador, los usa el UserSeeder
     'admin' => [
         'email' => env('ADMIN_EMAIL'),
         'password' => env('ADMIN_PASSWORD'),

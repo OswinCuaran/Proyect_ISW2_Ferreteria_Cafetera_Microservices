@@ -36,33 +36,32 @@ async function categoryExists(id) {
 async function validateBody(body) {
   const errors = {};
   const { code, name, description, category_id, supplier_id, unit_of_measure, sale_price } = body;
-
   if (typeof code !== 'string' || code.trim() === '' || code.length > 30) {
-    errors.code = 'El codigo es obligatorio (maximo 30 caracteres)';
+    errors.code = 'El código es obligatorio (máximo 30 caracteres)';
   }
   if (typeof name !== 'string' || name.trim() === '' || name.length > 150) {
-    errors.name = 'El nombre es obligatorio (maximo 150 caracteres)';
+    errors.name = 'El nombre es obligatorio (máximo 150 caracteres)';
   }
   if (description != null && typeof description !== 'string') {
-    errors.description = 'La descripcion debe ser texto';
+    errors.description = 'La descripción debe ser texto';
   }
   if (!Number.isInteger(category_id) || category_id < 1) {
-    errors.category_id = 'La categoria es obligatoria (numero entero)';
+    errors.category_id = 'La categoría es obligatoria (número entero)';
   } else if (!(await categoryExists(category_id))) {
-    errors.category_id = 'La categoria no existe';
+    errors.category_id = 'La categoría no existe';
   }
   if (!Number.isInteger(supplier_id) || supplier_id < 1) {
-    errors.supplier_id = 'El proveedor es obligatorio (numero entero)';
+    errors.supplier_id = 'El proveedor es obligatorio (número entero)';
   }
   if (!UNITS.includes(unit_of_measure)) {
     errors.unit_of_measure = `Debe ser una de: ${UNITS.join(', ')}`;
   }
   if (typeof sale_price !== 'number' || sale_price < 0) {
-    errors.sale_price = 'Debe ser un numero mayor o igual a 0';
+    errors.sale_price = 'Debe ser un número mayor o igual a 0';
   }
   return errors;
 }
-// Validacion de los datos
+
 async function validateProduct(req) {
   const errors = await validateBody(req.body);
   if (!errors.supplier_id) {
@@ -70,17 +69,18 @@ async function validateProduct(req) {
     if (!supplier) {
       errors.supplier_id = 'El proveedor no existe';
     } else if (!supplier.is_active) {
-      errors.supplier_id = 'El proveedor esta dado de baja';
+      errors.supplier_id = 'El proveedor está dado de baja';
     }
   }
   return errors;
 }
+
 const invalid = (req, res, errors) =>
-  sendError(req, res, 400, 'DATOS_INVALIDOS', 'Los datos enviados no son validos', errors);
+  sendError(req, res, 400, 'DATOS_INVALIDOS', 'Los datos enviados no son válidos', errors);
+
 const notFound = (req, res) =>
   sendError(req, res, 404, 'NO_ENCONTRADO', 'El producto no existe');
 
-// GET /products?search=&category_id=&supplier_id=&is_active=
 router.get('/', wrap(async (req, res) => {
   const { search, category_id, supplier_id, is_active } = req.query;
   const where = [];
@@ -106,7 +106,6 @@ router.get('/', wrap(async (req, res) => {
   res.json(rows.map(formatProduct));
 }));
 
-//obtener por el id
 router.get('/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   const product = id && await findProduct(id);
@@ -114,7 +113,6 @@ router.get('/:id', wrap(async (req, res) => {
   res.json(formatProduct(product));
 }));
 
-//subir producto
 router.post('/', wrap(async (req, res) => {
   const errors = await validateProduct(req);
   if (Object.keys(errors).length) return invalid(req, res, errors);
@@ -122,17 +120,15 @@ router.post('/', wrap(async (req, res) => {
   const code = req.body.code.trim();
   const [dup] = await pool.query('SELECT id FROM products WHERE code = ?', [code]);
   if (dup.length) {
-    return sendError(req, res, 409, 'DUPLICADO', `Ya existe un producto con el codigo ${code}`);
+    return sendError(req, res, 409, 'DUPLICADO', `Ya existe un producto con el código ${code}`);
   }
   const [result] = await pool.query(
-    `INSERT INTO products (code, name, description, category_id, supplier_id, unit_of_measure, sale_price)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (code, name, description, category_id, supplier_id, unit_of_measure, sale_price) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [code, name.trim(), description ?? null, category_id, supplier_id, unit_of_measure, sale_price],
   );
-  res.status(201).json(formatProduct(await findProduct(result.insertId)));
+  res.status(201).json({ message: 'Producto registrado correctamente', product: formatProduct(await findProduct(result.insertId)) });
 }));
 
-//put por id
 router.put('/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id || !(await findProduct(id))) return notFound(req, res);
@@ -142,23 +138,20 @@ router.put('/:id', wrap(async (req, res) => {
   const code = req.body.code.trim();
   const [dup] = await pool.query('SELECT id FROM products WHERE code = ? AND id <> ?', [code, id]);
   if (dup.length) {
-    return sendError(req, res, 409, 'DUPLICADO', `Ya existe un producto con el codigo ${code}`);
+    return sendError(req, res, 409, 'DUPLICADO', `Ya existe un producto con el código ${code}`);
   }
   await pool.query(
-    `UPDATE products SET code = ?, name = ?, description = ?, category_id = ?,
-       supplier_id = ?, unit_of_measure = ?, sale_price = ? WHERE id = ?`,
+    `UPDATE products SET code = ?, name = ?, description = ?, category_id = ?, supplier_id = ?, unit_of_measure = ?, sale_price = ? WHERE id = ?`,
     [code, name.trim(), description ?? null, category_id, supplier_id, unit_of_measure, sale_price, id],
   );
-  res.json(formatProduct(await findProduct(id)));
+  res.json({ message: 'Producto actualizado correctamente', product: formatProduct(await findProduct(id)) });
 }));
 
 router.patch('/:id/deactivate', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id || !(await findProduct(id))) return notFound(req, res);
-
-  // Baja logica: no se borra para conservar el historial
   await pool.query('UPDATE products SET is_active = 0 WHERE id = ?', [id]);
-  res.json(formatProduct(await findProduct(id)));
+  res.json({ message: 'Producto dado de baja correctamente', product: formatProduct(await findProduct(id)) });
 }));
 
 module.exports = router;

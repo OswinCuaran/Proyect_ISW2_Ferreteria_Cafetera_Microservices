@@ -23,18 +23,17 @@ async function validateBody(body) {
   const errors = {};
   const { name, parent_category_id: parentId } = body;
   if (typeof name !== 'string' || name.trim() === '' || name.length > 100) {
-    errors.name = 'El nombre es obligatorio (maximo 100 caracteres)';
+    errors.name = 'El nombre es obligatorio (máximo 100 caracteres)';
   }
   if (parentId != null && !(await findCategory(parentId))) {
-    errors.parent_category_id = 'La categoria padre no existe';
+    errors.parent_category_id = 'La categoría padre no existe';
   }
   return errors;
 }
 
 const invalid = (req, res, errors) =>
-  sendError(req, res, 400, 'DATOS_INVALIDOS', 'Los datos enviados no son validos', errors);
+  sendError(req, res, 400, 'DATOS_INVALIDOS', 'Los datos enviados no son válidos', errors);
 
-//tomar categorias
 router.get('/', wrap(async (req, res) => {
   const parentId = req.query.parent_category_id;
   const [rows] = parentId
@@ -43,54 +42,45 @@ router.get('/', wrap(async (req, res) => {
   res.json(rows.map(formatCategory));
 }));
 
-//ingresar categorias
 router.post('/', wrap(async (req, res) => {
   const errors = await validateBody(req.body);
   if (Object.keys(errors).length) return invalid(req, res, errors);
-
   const name = req.body.name.trim();
   const [dup] = await pool.query('SELECT id FROM categories WHERE name = ?', [name]);
   if (dup.length) {
-    return sendError(req, res, 409, 'DUPLICADO', `Ya existe una categoria con el nombre ${name}`);
+    return sendError(req, res, 409, 'DUPLICADO', `Ya existe una categoría con el nombre ${name}`);
   }
-
   const [result] = await pool.query(
     'INSERT INTO categories (name, description, parent_category_id) VALUES (?, ?, ?)',
     [name, req.body.description ?? null, req.body.parent_category_id ?? null],
   );
-  res.status(201).json(formatCategory(await findCategory(result.insertId)));
+  res.status(201).json({ message: 'Categoría registrada correctamente', category: formatCategory(await findCategory(result.insertId)) });
 }));
 
-// PUT /categories/:id
 router.put('/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id || !(await findCategory(id))) {
-    return sendError(req, res, 404, 'NO_ENCONTRADO', 'La categoria no existe');
+    return sendError(req, res, 404, 'NO_ENCONTRADO', 'La categoría no existe');
   }
-
   const errors = await validateBody(req.body);
   if (Object.keys(errors).length) return invalid(req, res, errors);
-
   const name = req.body.name.trim();
   const [dup] = await pool.query('SELECT id FROM categories WHERE name = ? AND id <> ?', [name, id]);
   if (dup.length) {
-    return sendError(req, res, 409, 'DUPLICADO', `Ya existe una categoria con el nombre ${name}`);
+    return sendError(req, res, 409, 'DUPLICADO', `Ya existe una categoría con el nombre ${name}`);
   }
-
   await pool.query(
     'UPDATE categories SET name = ?, description = ?, parent_category_id = ? WHERE id = ?',
     [name, req.body.description ?? null, req.body.parent_category_id ?? null, id],
   );
-  res.json(formatCategory(await findCategory(id)));
+  res.json({ message: 'Categoría actualizada correctamente', category: formatCategory(await findCategory(id)) });
 }));
 
-// DELETE /categories/:id
 router.delete('/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   if (!id || !(await findCategory(id))) {
-    return sendError(req, res, 404, 'NO_ENCONTRADO', 'La categoria no existe');
+    return sendError(req, res, 404, 'NO_ENCONTRADO', 'La categoría no existe');
   }
-
   const [[{ used }]] = await pool.query(
     `SELECT (SELECT COUNT(*) FROM products WHERE category_id = ?)
           + (SELECT COUNT(*) FROM categories WHERE parent_category_id = ?) AS used`,
@@ -98,11 +88,10 @@ router.delete('/:id', wrap(async (req, res) => {
   );
   if (used > 0) {
     return sendError(req, res, 409, 'CATEGORIA_EN_USO',
-      'No se puede eliminar porque tiene productos o subcategorias asociados');
+      'No se puede eliminar porque tiene productos o subcategorías asociados');
   }
-
   await pool.query('DELETE FROM categories WHERE id = ?', [id]);
-  res.status(204).send();
+  res.json({ message: 'Categoría eliminada correctamente' });
 }));
 
 module.exports = router;

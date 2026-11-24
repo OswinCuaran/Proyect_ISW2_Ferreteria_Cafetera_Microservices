@@ -4,7 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// Tabla de soporte de Laravel para las sesiones web
 return new class extends Migration
 {
     public function up(): void

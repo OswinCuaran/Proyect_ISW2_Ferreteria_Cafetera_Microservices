@@ -1,4 +1,3 @@
-"""Middleware del microservicio: token interno, correlation id y log de cada petición."""
 import hmac
 import logging
 import time
@@ -11,7 +10,6 @@ logger = logging.getLogger("inventario")
 class InternalTokenMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
-
     def __call__(self, request):
         correlation_id = request.headers.get("X-Correlation-Id") or str(uuid.uuid4())
         request.correlation_id = correlation_id
@@ -32,7 +30,6 @@ class InternalTokenMiddleware:
             request.headers.get("X-User-Id", "-"), correlation_id,
         )
         return response
-
     @staticmethod
     def _valid_token(request):
         expected = settings.INTERNAL_TOKEN

@@ -11,7 +11,6 @@ class CheckRole
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         $user = $request->user();
-
         if (! $user || ! $user->hasRole(...$roles)) {
             return response()->json([
                 'error' => 'SIN_PERMISO',

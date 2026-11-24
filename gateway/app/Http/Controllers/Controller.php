@@ -11,7 +11,7 @@ abstract class Controller
         return response()->json([
             'error' => $code,
             'message' => $message,
-            'correlation_id' => request()->header('X-Correlation-Id'), // Lo llena el middleware del paso 6
+            'correlation_id' => request()->header('X-Correlation-Id'),
         ], $status);
     }
 }

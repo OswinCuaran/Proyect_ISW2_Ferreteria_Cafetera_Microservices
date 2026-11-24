@@ -6,10 +6,10 @@ from errors import InvalidData
 
 bp = Blueprint("reports", __name__)
 
-LEAD_TIME_DAYS = 7      # lo que tarda el proveedor en entregar
-COVERAGE_DAYS = 30      # para cuántos días se pide
-ALERT_DAYS = 15         # 15 dias de stock
-HISTORY_DAYS = 30       # ventas que se miran hacia atrás
+LEAD_TIME_DAYS = 7
+COVERAGE_DAYS = 30
+ALERT_DAYS = 15
+HISTORY_DAYS = 30
 
 def int_param(name):
     value = request.args.get(name)
@@ -63,8 +63,7 @@ def rotation_by_product(rows, sold):
 def stock():
     rows = collect_stock(g.correlation_id, int_param("warehouse_id"), int_param("category_id"))
     result = [
-        {key: row[key] for key in
-         ("product_id", "code", "name", "category", "warehouse_id", "warehouse", "quantity", "minimum_stock")}
+        {key: row[key] for key in ("product_id", "code", "name", "category", "warehouse_id", "warehouse", "quantity", "minimum_stock")}
         for row in rows
     ]
     return jsonify(result)
@@ -98,13 +97,10 @@ def rotation():
     if date_from > date_to:
         raise InvalidData("from no puede ser posterior a to")
     limit = int_param("limit") or 5
-
     rows = collect_stock(g.correlation_id, int_param("warehouse_id"))
     sold = sales_units(sorted({r["product_id"] for r in rows}), date_from, date_to, g.correlation_id)
     items = rotation_by_product(rows, sold)
-
-    highest = sorted([i for i in items if i["units_sold"] > 0],
-                     key=lambda i: i["rotation_index"], reverse=True)[:limit]
+    highest = sorted([i for i in items if i["units_sold"] > 0], key=lambda i: i["rotation_index"], reverse=True)[:limit]
     lowest = sorted(items, key=lambda i: i["rotation_index"])[:limit]
     return jsonify({"highest_rotation": highest, "lowest_rotation": lowest})
 
@@ -112,8 +108,7 @@ def rotation():
 def suggestions():
     today = today_utc()
     rows = collect_stock(g.correlation_id, int_param("warehouse_id"))
-    sold = sales_units(sorted({r["product_id"] for r in rows}),
-                       today - timedelta(days=HISTORY_DAYS), today, g.correlation_id)
+    sold = sales_units(sorted({r["product_id"] for r in rows}), today - timedelta(days=HISTORY_DAYS), today, g.correlation_id)
     season, factor = season_for(today)
     result = []
     for row in rows:
@@ -146,19 +141,15 @@ def suggestions():
 def dashboard():
     today = today_utc()
     rows = collect_stock(g.correlation_id)
-    sold = sales_units(sorted({r["product_id"] for r in rows}),
-                       today - timedelta(days=HISTORY_DAYS), today, g.correlation_id)
-
+    sold = sales_units(sorted({r["product_id"] for r in rows}), today - timedelta(days=HISTORY_DAYS), today, g.correlation_id)
     totals = {}
     for row in rows:
         totals[row["product_id"]] = totals.get(row["product_id"], 0) + row["quantity"]
-
     items = rotation_by_product(rows, sold)
     return jsonify({
         "total_inventory_value": round(sum(r["quantity"] * r["unit_price"] for r in rows), 2),
         "products_out_of_stock": sum(1 for q in totals.values() if q == 0),
-        "products_below_minimum": len({r["product_id"] for r in rows
-                                       if r["minimum_stock"] > 0 and r["quantity"] < r["minimum_stock"]}),
+        "products_below_minimum": len({r["product_id"] for r in rows if r["minimum_stock"] > 0 and r["quantity"] < r["minimum_stock"]}),
         "average_rotation": round(sum(i["rotation_index"] for i in items) / len(items), 2) if items else 0,
         "calculated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     })

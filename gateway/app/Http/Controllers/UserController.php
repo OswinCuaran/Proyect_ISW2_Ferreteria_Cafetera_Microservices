@@ -47,7 +47,6 @@ class UserController extends Controller
             ->when($request->has('is_active'), fn ($query) => $query->where('is_active', $request->boolean('is_active')))
             ->orderBy('first_name')
             ->get();
-
         return response()->json(UserResource::collection($users));
     }
 
@@ -60,7 +59,6 @@ class UserController extends Controller
             'role_id' => ['sometimes', 'required', 'integer', 'exists:roles,id'],
             'warehouse_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
         ]);
-        // El correo nuevo no puede ser de otro usuario
         if (isset($data['email']) && User::where('email', $data['email'])->where('id', '!=', $user->id)->exists()) {
             return $this->error('CORREO_DUPLICADO', 'Ya existe un usuario con ese correo', 409);
         }
