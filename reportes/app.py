@@ -5,8 +5,10 @@ import uuid
 from werkzeug.exceptions import HTTPException
 from errors import InvalidData, ServiceUnavailable
 from reports import bp as reports_bp
+from dotenv import load_dotenv
 from flask import Flask, g, jsonify, request
 
+load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("reportes")
 
@@ -21,7 +23,6 @@ def error_response(error, message, status):
 
 @app.before_request
 def check_internal_token():
-    # Usa el Correlation ID que llega o crea uno nuevo
     g.correlation_id = request.headers.get("X-Correlation-Id") or str(uuid.uuid4())
     logger.info("%s %s correlation_id=%s", request.method, request.full_path.rstrip("?"), g.correlation_id)
     if request.path == "/health":
@@ -45,7 +46,7 @@ app.register_blueprint(reports_bp)
 
 @app.errorhandler(ServiceUnavailable)
 def service_unavailable(e):
-    return error_response("SERVICIO_NO_DISPONIBLE", f"El servicio {e.service} no respondió", 503)
+    return error_response("SERVICIO_NO_DISPONIBLE", f"El servicio de {e.service} no está disponible en este momento", 503)
 
 @app.errorhandler(InvalidData)
 def invalid_data(e):
@@ -55,6 +56,8 @@ def invalid_data(e):
 def http_error(e):
     if e.code == 404:
         return error_response("NO_ENCONTRADO", "La ruta no existe", 404)
+    if e.code == 405:
+        return error_response("METODO_NO_PERMITIDO", f"El método {request.method} no está permitido en esta ruta", 405)
     return error_response("DATOS_INVALIDOS", e.description, e.code)
 
 @app.errorhandler(Exception)
