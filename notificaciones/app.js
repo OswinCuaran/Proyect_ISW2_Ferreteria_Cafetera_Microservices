@@ -1,4 +1,5 @@
 const express = require('express');
+const alertsRouter = require('./routes/alerts');
 const internalToken = require('./middleware/internalToken');
 const app = express();
 
@@ -9,7 +10,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'notificaciones' });
 });
 
-// Aquí irá POST /alerts (paso 2)
+app.use('/alerts', alertsRouter);
 
 // Ruta que no existe
 app.use((req, res) => {

@@ -211,6 +211,24 @@ services:
       - /app/node_modules
     command: node --watch app.js
 
+ # Microservicio de Reportes y dashboard (Flask)
+  reportes:
+    build: ./reportes
+    container_name: reportes
+    ports:
+      - "5002:5000"
+    environment:
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      INVENTARIO_URL: http://inventario:8000
+      CATALOGO_URL: http://catalogo:3000
+      COMPRAS_URL: http://compras:5000
+      FLASK_DEBUG: "1"
+    volumes:
+      - ./reportes:/app
+    depends_on:
+      - inventario
+      - catalogo
+      - compras
 # Volúmenes donde Docker guarda los datos de las bases de datos
 volumes:
   mysql-gateway-data:
