@@ -20,7 +20,7 @@ Administra los proveedores a los que la ferretería les compra, con sus personas
 
 ## Se comunica con
 
-No llama a otros servicios. Lo llama **Compras** para validar que el proveedor de una orden exista y esté activo.
+No llama a otros servicios. Lo llaman **Compras**, para validar el proveedor de una orden, y **Catálogo**, para validar el proveedor de un producto. En los dos casos se revisa que exista y esté activo.
 
 ## Rutas
 

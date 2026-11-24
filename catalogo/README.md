@@ -1,72 +1,63 @@
 # Microservicio de Catálogo
 
-Administra los productos que vende la ferretería, organizados en categorías y subcategorías.
+Administra los productos que vende la ferretería, organizados en categorías y subcategorías. Los demás servicios solo guardan el id del producto y le preguntan a Catálogo por su nombre, su precio o si sigue activo.
 
 ## Tecnología
 
 | | |
 |---|---|
-| Lenguaje | JavaScript (Node.js 22) |
-| Framework | Express 4 |
-| Base de datos | `catalogo_db` (MySQL 8) |
-| Puerto del contenedor | 3000 (3001 en el computador) |
-| Nombre en la red de Docker | `catalogo` (`http://catalogo:3000`) |
+| Lenguaje | JavaScript (Node.js) |
+| Framework | Express |
+| Base de datos | `catalogo_db` (MySQL) |
+| Puerto del contenedor | 3000 |
+| Nombre del contenedor | `catalogo` (`http://catalogo:3000`, en tu equipo `http://localhost:3001`) |
 
 ## Funcionalidades
 
 - Registro, consulta y actualización de productos, con su código, unidad de medida, precio de venta, categoría y proveedor.
-- Búsqueda y filtrado de productos por nombre, código, categoría o proveedor.
+- Búsqueda de productos por nombre o código y filtros por categoría, proveedor o estado.
 - Baja de productos sin borrarlos, para conservar su historial.
 - Gestión de categorías y subcategorías.
-- Al crear o actualizar un producto, valida con Proveedores que el proveedor exista y esté activo.
-
-## Rutas
-
-El Gateway quita el prefijo: el cliente llama `GET /api/catalogo/products/5` y este servicio recibe `GET /products/5`.
-
-| Método y ruta | Qué hace | Roles | Respuestas |
-|---|---|---|---|
-| `GET /health` | Estado del servicio (no pide token) | — | 200 |
-| `GET /products?search=&category_id=&supplier_id=&is_active=` | Busca y filtra productos | Los tres | 200 |
-| `GET /products/{id}` | Consulta un producto | Los tres | 200, 404 |
-| `POST /products` | Crea un producto | ADMINISTRADOR | 201, 400, 409, 503 |
-| `PUT /products/{id}` | Actualiza un producto | ADMINISTRADOR | 200, 400, 404, 409, 503 |
-| `PATCH /products/{id}/deactivate` | Da de baja un producto | ADMINISTRADOR | 200, 404 |
-| `GET /categories?parent_category_id=` | Lista categorías y subcategorías | Los tres | 200 |
-| `POST /categories` | Crea una categoría | ADMINISTRADOR | 201, 400, 409 |
-| `PUT /categories/{id}` | Actualiza una categoría | ADMINISTRADOR | 200, 400, 404, 409 |
-| `DELETE /categories/{id}` | Elimina una categoría | ADMINISTRADOR | 204, 404, 409 |
-
-Los campos van en inglés y en `snake_case`: `code`, `name`, `description`, `category_id`, `supplier_id`, `unit_of_measure` (`UNIDAD`, `PAR`, `CAJA`, `METRO`, `ROLLO`, `KILOGRAMO`, `BULTO`, `LITRO` o `GALON`), `sale_price` e `is_active`.
-
-Los errores tienen el formato `{"error", "message", "correlation_id"}`. Códigos usados: `DATOS_INVALIDOS`, `TOKEN_INTERNO_INVALIDO`, `NO_ENCONTRADO`, `DUPLICADO`, `CATEGORIA_EN_USO`, `SERVICIO_NO_DISPONIBLE`, `ERROR_INTERNO`.
-
-## Variables de entorno
-
-`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `INTERNAL_TOKEN` y `PROVEEDORES_URL`. Ver `.env.example`. Los valores reales viven en el `.env` de la raíz y nunca se suben a GitHub.
-
-Las tablas se crean con `database/init.sql` la primera vez que arranca la base de datos.
-
-## Cómo probarlo
-
-Desde la raíz del repositorio:
-
-    docker compose up -d --build catalogo
-    docker logs -f catalogo
-
-Directo al servicio (Thunder Client), con los headers `X-Internal-Token`, `X-User-Id`, `X-User-Role` y `X-Correlation-Id`:
-
-    GET http://localhost:3001/health
-    GET http://localhost:3001/products
-
-A través del Gateway, con el token de Sanctum:
-
-    GET http://localhost:8000/api/catalogo/products
 
 ## Se comunica con
 
-- **Proveedores:** valida que el proveedor del producto exista y esté activo (tiempo máximo de espera: 2 segundos).
-- Lo llaman **Inventario** y **Compras**, para validar productos, y **Reportes**, para consultar precios y categorías.
+- **Proveedores:** antes de guardar un producto revisa que su proveedor exista y esté activo.
+- Lo llaman **Inventario**, para validar que un producto exista y esté activo antes de moverlo, y **Reportes**, para obtener el nombre, la categoría y el precio de los productos.
+
+## Rutas
+
+Todas exigen el header `X-Internal-Token`, salvo `/health`. A través del Gateway van con el prefijo `/api/catalogo`. Los tres roles pueden consultar productos y categorías; crearlos, editarlos, darlos de baja o eliminarlos solo lo hace el Administrador.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/health` | Estado del servicio |
+| GET | `/products?search=&category_id=&supplier_id=&is_active=` | Busca y filtra productos |
+| GET | `/products/{id}` | Consulta un producto |
+| POST | `/products` | Registra un producto |
+| PUT | `/products/{id}` | Actualiza un producto |
+| PATCH | `/products/{id}/deactivate` | Da de baja un producto |
+| GET | `/categories?parent_category_id=` | Lista las categorías o las subcategorías de una categoría |
+| POST | `/categories` | Crea una categoría |
+| PUT | `/categories/{id}` | Actualiza una categoría |
+| DELETE | `/categories/{id}` | Elimina una categoría |
+
+Un producto tiene `code`, `name`, `description`, `category_id`, `supplier_id`, `unit_of_measure` y `sale_price`. La unidad de medida puede ser `UNIDAD`, `PAR`, `CAJA`, `METRO`, `ROLLO`, `KILOGRAMO`, `BULTO`, `LITRO` o `GALON`. Una categoría tiene `name`, `description` y `parent_category_id` cuando es una subcategoría.
+
+## Reglas de negocio
+
+- El código de un producto y el nombre de una categoría no se pueden repetir: responde `409 DUPLICADO`.
+- Un producto solo se guarda si su proveedor existe y está activo. Si Proveedores no responde, responde `503 SERVICIO_NO_DISPONIBLE` y no guarda nada.
+- Un producto dado de baja no se borra, pero Inventario ya no le registra movimientos.
+- Una categoría que tiene productos o subcategorías no se puede eliminar: responde `409 CATEGORIA_EN_USO`.
+
+## Cómo levantarlo
+
+```bash
+docker compose up -d --build catalogo
+docker logs -f catalogo
+```
+
+Las tablas se crean con `database/init.sql` la primera vez que arranca su base de datos.
 
 ## Requisitos que cubre
 

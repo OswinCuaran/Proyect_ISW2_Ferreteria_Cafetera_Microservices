@@ -1,6 +1,6 @@
 # Microservicio de Compras y devoluciones
 
-Gestiona las órdenes de compra a los proveedores, la recepción de la mercancía y las devoluciones de clientes y a proveedores.
+Gestiona las órdenes de compra a los proveedores, la recepción de la mercancía y las devoluciones de clientes y a proveedores. Cada vez que llega o sale mercancía, le pide a Inventario que registre el movimiento.
 
 ## Tecnología
 
@@ -21,23 +21,8 @@ Gestiona las órdenes de compra a los proveedores, la recepción de la mercancí
 
 ## Se comunica con
 
-- **Proveedores:** valida el proveedor de la orden.
-- **Catálogo:** valida los productos de la orden.
-- **Inventario:** registra las entradas por recepción y por devolución.
-
-## Estructura
-
-Sigue la estructura del ejercicio de Flask visto en clase:
-
-| Archivo | Qué hace |
-|---|---|
-| `database.py` | Arma la conexión a MySQL con las variables de entorno |
-| `create_tables.py` | Crea las tablas si no existen al arrancar el contenedor |
-| `app.py` | Crea la app, valida el token interno y responde los errores en el mismo formato |
-| `orders.py` | Rutas de órdenes de compra y recepciones, con SQL en `text()` |
-| `returns.py` | Rutas de devoluciones |
-| `clients.py` | Llamadas a Inventario y Proveedores con el token interno |
-| `utils.py` | Validaciones y formato de errores |
+- **Proveedores:** revisa que el proveedor de la orden exista y esté activo.
+- **Inventario:** revisa que la bodega de destino exista y registra las entradas por recepción, las entradas por devolución de cliente y las salidas por devolución a proveedor.
 
 ## Rutas
 
@@ -52,15 +37,27 @@ Todas exigen el header `X-Internal-Token`, salvo `/health`. A través del Gatewa
 | PATCH | `/orders/{id}/status` | Envía (`ENVIADA`) o cancela (`CANCELADA`) una orden |
 | POST | `/orders/{id}/receptions` | Recepción total o parcial: cada producto entra al stock en Inventario |
 | GET | `/returns?type=&warehouse_id=` | Lista las devoluciones |
-| POST | `/returns` | Devolución de cliente (reingresa lo que está en buen estado) o a proveedor (descuenta del stock) |
+| POST | `/returns` | Devolución de cliente o a proveedor |
+
+Una orden tiene `supplier_id`, `destination_warehouse_id`, `expected_date`, `notes` e `items`, y cada producto lleva `product_id`, `quantity_ordered` y `unit_price`. En una recepción cada producto lleva `product_id` y `quantity_received`.
 
 ## Reglas de negocio
 
-- Solo se recibe mercancía de órdenes `ENVIADA` o `RECIBIDA_PARCIAL`, y nunca más de lo pendiente.
-- Cuando llega todo lo pedido, la orden pasa sola a `RECIBIDA`; si falta algo, a `RECIBIDA_PARCIAL`.
+- Solo se recibe mercancía de órdenes `ENVIADA` o `RECIBIDA_PARCIAL`, y nunca más de lo que falta por recibir.
+- Cuando llega todo lo pedido, la orden pasa sola a `RECIBIDA`; si falta algo, queda en `RECIBIDA_PARCIAL`.
 - Una orden `RECIBIDA` o `CANCELADA` ya no cambia de estado.
-- Si Inventario rechaza un movimiento (por ejemplo, sin existencias), la recepción o la devolución se deshace completa.
+- En una devolución de cliente solo vuelven al stock los productos en buen estado; los defectuosos se registran pero no se reingresan.
+- Antes de registrar una recepción o una devolución se revisa que Inventario esté disponible. Si Inventario rechaza un movimiento, Compras no guarda la operación.
 - El Operador solo recibe y devuelve mercancía de su propia bodega.
+
+## Cómo levantarlo
+
+```bash
+docker compose up -d --build compras
+docker logs -f compras
+```
+
+Al arrancar, el contenedor crea las tablas que todavía no existen.
 
 ## Requisitos que cubre
 
