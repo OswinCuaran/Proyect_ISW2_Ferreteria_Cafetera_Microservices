@@ -1,0 +1,3 @@
+Type,Name,Request Count,Failure Count,Median Response Time,Average Response Time,Min Response Time,Max Response Time,Average Content Size,Requests/s,Failures/s,50%,66%,75%,80%,90%,95%,98%,99%,99.9%,99.99%,100%
+POST,POST notificaciones/alerts (directo),2170,0,1,1.747855410601596,0.6315830105450004,28.231333999428898,29.0,48.10403042113189,0.0,1,2,2,2,2,3,5,10,26,28,28
+,Aggregated,2170,0,1,1.747855410601596,0.6315830105450004,28.231333999428898,29.0,48.10403042113189,0.0,1,2,2,2,2,3,5,10,26,28,28
