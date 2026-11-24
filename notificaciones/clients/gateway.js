@@ -9,14 +9,13 @@ async function getUsers(role, warehouseId, correlationId) {
       'X-Correlation-Id': correlationId,
       Accept: 'application/json',
     },
-    signal: AbortSignal.timeout(2000), // 2 segundos
+    signal: AbortSignal.timeout(2000),
   });
   if (!response.ok) throw new Error(`Gateway respondió ${response.status}`);
   const body = await response.json();
   return Array.isArray(body) ? body : body.data || [];
 }
 
-// Operadores de la bodega + administradores, sin correos repetidos
 async function getRecipients(warehouseId, correlationId) {
   const [operators, admins] = await Promise.all([
     getUsers('OPERADOR', warehouseId, correlationId),

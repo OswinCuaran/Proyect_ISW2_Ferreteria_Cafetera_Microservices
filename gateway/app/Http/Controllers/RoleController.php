@@ -13,7 +13,7 @@ class RoleController extends Controller
             'id' => $role->id,
             'name' => $role->name,
             'description' => $role->description,
-            'permissions' => $role->permissions->pluck('code'), // Solo los códigos
+            'permissions' => $role->permissions->pluck('code'),
         ]);
         return response()->json($roles);
     }

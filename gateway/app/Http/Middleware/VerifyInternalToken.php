@@ -6,8 +6,6 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-// Protege las rutas internas: solo pasan los microservicios que envían el token interno
-// en el header X-Internal-Token. Los usuarios nunca conocen este token
 class VerifyInternalToken
 {
     public function handle(Request $request, Closure $next): Response

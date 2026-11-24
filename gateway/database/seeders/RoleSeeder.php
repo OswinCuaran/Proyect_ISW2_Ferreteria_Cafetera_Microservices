@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\Role;
 use Illuminate\Database\Seeder;
 
-// Crea los tres roles del sistema
 class RoleSeeder extends Seeder
 {
     public function run(): void
@@ -15,9 +14,7 @@ class RoleSeeder extends Seeder
             'OPERADOR'      => 'Registra entradas, salidas, ajustes, traslados y recepciones en su bodega',
             'VENDEDOR'      => 'Registra ventas y consulta productos y disponibilidad',
         ];
-
         foreach ($roles as $name => $description) {
-            // Busca el rol por nombre: si existe lo actualiza, si no lo crea
             Role::updateOrCreate(['name' => $name], ['description' => $description]);
         }
     }

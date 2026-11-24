@@ -1,8 +1,5 @@
 <?php
 
-// Permiso que exige cada ruta de cada microservicio.
-// Formato: 'MÉTODO /ruta' => 'código del permiso'. El * reemplaza cualquier valor (un id, por ejemplo).
-// Se revisan en orden y gana la primera que coincida. Lo que no esté aquí se niega.
 return [
     'inventario' => [
         'GET /warehouses'               => 'inventario.bodegas.consultar',

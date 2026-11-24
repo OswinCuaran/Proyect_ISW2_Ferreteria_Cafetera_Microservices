@@ -11,7 +11,6 @@ from .serializers import movement_json, number, stock_json, transfer_json, wareh
 
 logger = logging.getLogger("inventario")
 
-# RUTAS DEL MICROSERVICIO
 def api(*methods):
     def decorator(view):
         @wraps(view)
@@ -25,7 +24,6 @@ def api(*methods):
         return wrapper
     return decorator
 
-# Ruta de salud del microservicio
 @api("GET")
 def health(request):
     return json_response({"status": "ok", "service": "inventario"})
@@ -63,10 +61,9 @@ def warehouses(request):
         raise ApiError(409, "BODEGA_DUPLICADA", f"Ya existe una bodega con el código {data['code']}")
     with transaction.atomic():
         if data["is_main"]:
-            Warehouse.objects.update(is_main=False)   
+            Warehouse.objects.update(is_main=False)
         warehouse = Warehouse.objects.create(**data)
     return json_response({"message": "Bodega creada correctamente", "warehouse": warehouse_json(warehouse)}, status=201)
-
 
 @api("PUT")
 def warehouse_detail(request, warehouse_id):
@@ -94,7 +91,6 @@ def deactivate_warehouse(request, warehouse_id):
 
 @api("PATCH")
 def activate_warehouse(request, warehouse_id):
-    # PATCH /warehouses/{id}/activate
     warehouse = find_warehouse(warehouse_id)
     warehouse.is_active = True
     warehouse.save()
@@ -159,7 +155,6 @@ def movements(request):
 
 @api("POST")
 def transfers(request):
-    # POST /transfers
     payload = Payload(request)
     origin_id = payload.integer("origin_warehouse_id", "bodega de origen")
     destination_id = payload.integer("destination_warehouse_id", "bodega de destino")

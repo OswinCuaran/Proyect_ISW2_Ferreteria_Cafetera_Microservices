@@ -43,17 +43,14 @@ class Payload:
         if not isinstance(self.data, dict):
             raise ApiError(400, "DATOS_INVALIDOS", "El cuerpo de la petición debe ser un objeto JSON")
         self.errors = {}
-
     def add(self, field, message):
         self.errors.setdefault(field, []).append(message)
-
     def missing(self, field, label):
         value = self.data.get(field)
         if value is None or (isinstance(value, str) and not value.strip()):
             self.add(field, f"El campo {label} es obligatorio.")
             return True
         return False
-
     def string(self, field, label, max_length, required=True):
         if field not in self.data or self.data.get(field) in (None, ""):
             if required:
@@ -71,7 +68,6 @@ class Payload:
             self.add(field, f"El campo {label} no debe tener más de {max_length} caracteres.")
             return None
         return value or None
-
     def integer(self, field, label):
         if self.missing(field, label):
             return None
@@ -79,7 +75,6 @@ class Payload:
         if value is None:
             self.add(field, f"El campo {label} debe ser un número entero mayor que cero.")
         return value
-
     def quantity(self, field, label, allow_zero=False, data=None, error_key=None):
         source = self.data if data is None else data
         key = error_key or field
@@ -101,14 +96,12 @@ class Payload:
             self.add(key, f"El campo {label} es demasiado grande.")
             return None
         return number
-
     def boolean(self, field, label, default=False):
         value = self.data.get(field, default)
         if not isinstance(value, bool):
             self.add(field, f"El campo {label} debe ser verdadero o falso.")
             return default
         return value
-
     def choice(self, field, label, options):
         if self.missing(field, label):
             return None
@@ -117,7 +110,6 @@ class Payload:
             self.add(field, f"El campo {label} debe ser uno de: {', '.join(options)}.")
             return None
         return value
-
     def items(self, field, label):
         value = self.data.get(field)
         if not isinstance(value, list) or not value:
@@ -135,11 +127,9 @@ class Payload:
             if product_id is not None and quantity is not None:
                 result.append({"product_id": product_id, "quantity": quantity})
         return result
-
     def check(self):
         if self.errors:
             raise invalid(self.errors)
-
 
 def check_id(value):
     if isinstance(value, bool):

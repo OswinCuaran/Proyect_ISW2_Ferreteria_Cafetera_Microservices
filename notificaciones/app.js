@@ -12,7 +12,6 @@ app.get('/health', (req, res) => {
 
 app.use('/alerts', alertsRouter);
 
-// Ruta que no existe
 app.use((req, res) => {
   res.status(404).json({
     error: 'NO_ENCONTRADO',
@@ -21,7 +20,6 @@ app.use((req, res) => {
   });
 });
 
-// JSON mal formado u otro error inesperado
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({
