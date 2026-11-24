@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+GET,GET reportes/dashboard,HTTPError('503 Server Error: Service Unavailable for url: GET reportes/dashboard'),2072,2026-11-24T04:30:31Z,2026-11-24T04:31:12Z

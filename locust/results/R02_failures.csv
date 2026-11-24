@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+GET,GET reportes/stock,HTTPError('503 Server Error: Service Unavailable for url: GET reportes/stock'),2122,2026-11-24T04:31:13Z,2026-11-24T04:31:57Z
